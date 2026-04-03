@@ -324,6 +324,11 @@ export const Tasks: React.FC<TasksProps> = ({ tasks, employees, refreshData }) =
                      <option value="">-- Seleccionar --</option>
                      {employees
                         .filter(e => e.category === 'Oficina')
+                        .sort((a, b) => {
+                          const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+                          const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+                          return nameA.localeCompare(nameB);
+                        })
                         .map(e => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}
                    </select>
                  </div>

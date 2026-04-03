@@ -13,7 +13,10 @@ import {
   Timestamp,
   getDoc,
   setDoc,
-  writeBatch
+  writeBatch,
+  startAfter,
+  QueryDocumentSnapshot,
+  DocumentData
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { Employee, Expense, Task, TaskStatus, AppSettings, GeneratedImage, Plaza, Fallo } from "../types";
@@ -158,14 +161,30 @@ export const deletePlaza = async (id: string) => {
   return await deleteDoc(doc(db, "plazas", id));
 };
 
-export const getExpenses = async (): Promise<Expense[]> => {
-  const q = query(collection(db, "expenses"), orderBy("date", "desc"));
+export const getExpenses = async (lastDoc?: QueryDocumentSnapshot<DocumentData>): Promise<{ data: Expense[], lastVisible: QueryDocumentSnapshot<DocumentData> | null }> => {
+  let q = query(collection(db, "expenses"), orderBy("date", "desc"), limit(20));
+  if (lastDoc) {
+    q = query(collection(db, "expenses"), orderBy("date", "desc"), startAfter(lastDoc), limit(20));
+  }
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
+  const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
+  const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+  return { data, lastVisible };
 };
 
 export const addExpense = async (expense: Omit<Expense, 'id'>) => {
   return await addDoc(collection(db, "expenses"), expense);
+};
+
+export const getExpensesByDateRange = async (startDate: string, endDate: string): Promise<Expense[]> => {
+  const q = query(
+    collection(db, "expenses"), 
+    where("date", ">=", startDate), 
+    where("date", "<=", endDate),
+    orderBy("date", "desc")
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
 };
 
 export const updateExpense = async (id: string, expense: Partial<Expense>) => {
@@ -300,10 +319,15 @@ export const saveDailyBirthdayCard = async (employeeId: string, imageUrl: string
 
 // --- FALLOS / DOCUMENTOS ---
 
-export const getFallos = async (): Promise<Fallo[]> => {
-  const q = query(collection(db, "fallos"), orderBy("date", "desc"));
+export const getFallos = async (lastDoc?: QueryDocumentSnapshot<DocumentData>): Promise<{ data: Fallo[], lastVisible: QueryDocumentSnapshot<DocumentData> | null }> => {
+  let q = query(collection(db, "fallos"), orderBy("date", "desc"), limit(20));
+  if (lastDoc) {
+    q = query(collection(db, "fallos"), orderBy("date", "desc"), startAfter(lastDoc), limit(20));
+  }
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
+  const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
+  const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+  return { data, lastVisible };
 };
 
 export const addFallo = async (fallo: Omit<Fallo, 'id'>) => {

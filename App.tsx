@@ -36,7 +36,7 @@ import { Login } from './components/Login';
 import { Assistant } from './components/Assistant'; 
 import { Fallos } from './components/Fallos';
 
-import { getEmployees, getExpenses, getTasks, getAppSettings, updateAppSettings, getFallos } from './services/dbService';
+import { getEmployees, getExpenses, getExpensesByDateRange, getTasks, getAppSettings, updateAppSettings, getFallos } from './services/dbService';
 import { validateApiKey } from './services/geminiService';
 import { Employee, Expense, Task, Fallo } from './types';
 
@@ -93,8 +93,22 @@ function App() {
   // Global Data State
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [dashboardExpenses, setDashboardExpenses] = useState<Expense[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [fallos, setFallos] = useState<Fallo[]>([]);
+  
+  // Pagination State
+  const [lastVisibleExpense, setLastVisibleExpense] = useState<any>(null);
+  const [lastVisibleFallo, setLastVisibleFallo] = useState<any>(null);
+  const [hasMoreExpenses, setHasMoreExpenses] = useState(true);
+  const [hasMoreFallos, setHasMoreFallos] = useState(true);
+
+  // Loading flags for lazy loading
+  const [hasLoadedEmployees, setHasLoadedEmployees] = useState(false);
+  const [hasLoadedExpenses, setHasLoadedExpenses] = useState(false);
+  const [hasLoadedDashboard, setHasLoadedDashboard] = useState(false);
+  const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
+  const [hasLoadedFallos, setHasLoadedFallos] = useState(false);
 
   // PWA: Listen for install prompt
   useEffect(() => {
@@ -203,48 +217,117 @@ function App() {
     initSettings();
   }, []);
 
-  const loadData = async () => {
+  const fetchEmployees = async () => {
+    if (hasLoadedEmployees) return;
     setLoading(true);
     try {
-      const [empData, expData, tskData, fallosData, settingsData] = await Promise.all([
-        getEmployees(),
-        getExpenses(),
-        getTasks(),
-        getFallos(),
-        getAppSettings()
-      ]);
-      
-      setEmployees(empData);
-      setExpenses(expData);
-      setTasks(tskData);
-      setFallos(fallosData);
-      
-      // Apply DB Settings
-      setCompanyName(settingsData.companyName || '');
-      setMascotaName(settingsData.mascotaName || 'Mascota');
-      setMascotaUrl(settingsData.mascotaUrl || '');
-      setGoogleApiKey(settingsData.googleApiKey || '');
-      setAppVersion(settingsData.appVersion || '1.0.0');
-      setAppStatusColor(settingsData.appStatusColor || '#10B981');
-
-    } catch (err) {
-      console.error("Error loading data:", err);
-      if (!navigator.onLine) setIsOnline(false);
+      const data = await getEmployees();
+      setEmployees(data);
+      setHasLoadedEmployees(true);
+    } catch (e) {
+      console.error("Error fetching employees", e);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (currentUser) {
-      loadData();
+  const fetchExpenses = async (loadMore = false) => {
+    if (!loadMore && hasLoadedExpenses) return;
+    setLoading(true);
+    try {
+      const { data, lastVisible } = await getExpenses(loadMore ? lastVisibleExpense : undefined);
+      if (loadMore) {
+        setExpenses(prev => [...prev, ...data]);
+      } else {
+        setExpenses(data);
+        setHasLoadedExpenses(true);
+      }
+      setLastVisibleExpense(lastVisible);
+      setHasMoreExpenses(data.length === 20);
+    } catch (e) {
+      console.error("Error fetching expenses", e);
+    } finally {
+      setLoading(false);
     }
-  }, [currentUser?.id]);
+  };
+
+  const fetchTasks = async () => {
+    if (hasLoadedTasks) return;
+    setLoading(true);
+    try {
+      const data = await getTasks();
+      setTasks(data);
+      setHasLoadedTasks(true);
+    } catch (e) {
+      console.error("Error fetching tasks", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchFallos = async (loadMore = false) => {
+    if (!loadMore && hasLoadedFallos) return;
+    setLoading(true);
+    try {
+      const { data, lastVisible } = await getFallos(loadMore ? lastVisibleFallo : undefined);
+      if (loadMore) {
+        setFallos(prev => [...prev, ...data]);
+      } else {
+        setFallos(data);
+        setHasLoadedFallos(true);
+      }
+      setLastVisibleFallo(lastVisible);
+      setHasMoreFallos(data.length === 20);
+    } catch (e) {
+      console.error("Error fetching fallos", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDashboardExpenses = async () => {
+    if (hasLoadedDashboard) return;
+    setLoading(true);
+    try {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      const data = await getExpensesByDateRange(firstDay, lastDay);
+      setDashboardExpenses(data);
+      setHasLoadedDashboard(true);
+    } catch (e) {
+      console.error("Error fetching dashboard expenses", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Lazy load data based on active tab
+  useEffect(() => {
+    if (!currentUser) return;
+
+    if (activeTab === 'dashboard') {
+      fetchEmployees();
+      fetchDashboardExpenses();
+      fetchTasks();
+    } else if (activeTab === 'personnel') {
+      fetchEmployees();
+    } else if (activeTab === 'expenses') {
+      fetchExpenses();
+    } else if (activeTab === 'tasks') {
+      fetchTasks();
+      fetchEmployees(); // Tasks need employees for assignment
+    } else if (activeTab === 'fallos') {
+      fetchFallos();
+      fetchEmployees(); // Fallos need employees for names
+    }
+  }, [activeTab, currentUser?.id]);
 
   const handleLogin = (user: Employee) => {
     localStorage.setItem('office_user_session', JSON.stringify(user));
     setCurrentUser(user);
-    loadData();
+    // Data will be loaded by the useEffect above
   };
 
   const handleLogout = () => {
@@ -253,8 +336,29 @@ function App() {
     setEmployees([]);
     setExpenses([]);
     setTasks([]);
+    setFallos([]);
+    setHasLoadedEmployees(false);
+    setHasLoadedExpenses(false);
+    setHasLoadedTasks(false);
+    setHasLoadedFallos(false);
     setActiveTab('dashboard');
     setUserMenuOpen(false);
+  };
+
+  const refreshData = () => {
+    // Force reload current tab data
+    if (activeTab === 'personnel') { setHasLoadedEmployees(false); fetchEmployees(); }
+    else if (activeTab === 'expenses') { setHasLoadedExpenses(false); fetchExpenses(); }
+    else if (activeTab === 'tasks') { setHasLoadedTasks(false); fetchTasks(); }
+    else if (activeTab === 'fallos') { setHasLoadedFallos(false); fetchFallos(); }
+    else if (activeTab === 'dashboard') {
+      setHasLoadedEmployees(false);
+      setHasLoadedExpenses(false);
+      setHasLoadedTasks(false);
+      fetchEmployees();
+      fetchExpenses();
+      fetchTasks();
+    }
   };
 
   const handleInstallApp = async () => {
@@ -390,12 +494,12 @@ function App() {
     }
 
     switch (activeTab) {
-      case 'dashboard': return <Dashboard currentUser={currentUser} employees={employees} expenses={expenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
-      case 'personnel': return <Personnel employees={employees} refreshData={loadData} />;
-      case 'expenses': return <Expenses expenses={expenses} refreshData={loadData} />;
-      case 'tasks': return <Tasks tasks={tasks} employees={employees} refreshData={loadData} />;
+      case 'dashboard': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
+      case 'personnel': return <Personnel employees={employees} refreshData={refreshData} />;
+      case 'expenses': return <Expenses expenses={expenses} refreshData={refreshData} hasMore={hasMoreExpenses} onLoadMore={() => fetchExpenses(true)} />;
+      case 'tasks': return <Tasks tasks={tasks} employees={employees} refreshData={refreshData} />;
       case 'promissory': return <PromissoryNotes companyName={companyName} />;
-      case 'fallos': return <Fallos employees={employees} fallos={fallos} refreshData={loadData} />;
+      case 'fallos': return <Fallos employees={employees} fallos={fallos} refreshData={refreshData} hasMore={hasMoreFallos} onLoadMore={() => fetchFallos(true)} />;
       case 'mascota': return <Mascota mascotaUrl={mascotaUrl} mascotaName={mascotaName} onOpenSettings={handleOpenSettings} />;
       default: return <Dashboard currentUser={currentUser} employees={employees} expenses={expenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
     }

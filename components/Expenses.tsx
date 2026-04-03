@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, Tag, Calendar, ChevronLeft, ChevronRight, FileText, Upload, Image as ImageIcon, X, Eye, Edit } from 'lucide-react';
+import { Plus, Trash2, Tag, Calendar, ChevronLeft, ChevronRight, FileText, Upload, Image as ImageIcon, X, Eye, Edit, ChevronDown } from 'lucide-react';
 import { Expense } from '../types';
 import { addExpense, deleteExpense, updateExpense } from '../services/dbService';
 import jsPDF from 'jspdf';
@@ -9,9 +9,11 @@ import autoTable from 'jspdf-autotable';
 interface ExpensesProps {
   expenses: Expense[];
   refreshData: () => void;
+  hasMore: boolean;
+  onLoadMore: () => void;
 }
 
-export const Expenses: React.FC<ExpensesProps> = ({ expenses, refreshData }) => {
+export const Expenses: React.FC<ExpensesProps> = ({ expenses, refreshData, hasMore, onLoadMore }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewTicketImage, setViewTicketImage] = useState<string | null>(null); // State for viewing image
   
@@ -381,6 +383,17 @@ export const Expenses: React.FC<ExpensesProps> = ({ expenses, refreshData }) => 
           </tbody>
         </table>
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center">
+          <button 
+            onClick={onLoadMore}
+            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-6 py-2 rounded-xl font-bold shadow-sm transition-all flex items-center"
+          >
+            <ChevronDown className="w-5 h-5 mr-2" /> Cargar más gastos
+          </button>
+        </div>
+      )}
 
       {/* NEW EXPENSE MODAL */}
       {isModalOpen && (
