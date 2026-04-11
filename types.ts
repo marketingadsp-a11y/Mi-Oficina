@@ -76,6 +76,7 @@ export interface AppSettings {
   googleApiKey?: string;
   appVersion?: string;
   appStatusColor?: string;
+  mobileNavSections?: string[];
 }
 
 export interface GeneratedImage {

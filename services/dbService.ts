@@ -60,7 +60,8 @@ export const subscribeToAppSettings = (callback: (settings: AppSettings) => void
         mascotaUrl: data.mascotaUrl || '',
         googleApiKey: data.googleApiKey || DEFINITIVE_KEY,
         appVersion: data.appVersion || '1.0.0',
-        appStatusColor: data.appStatusColor || '#10B981'
+        appStatusColor: data.appStatusColor || '#10B981',
+        mobileNavSections: data.mobileNavSections || ['dashboard', 'personnel', 'expenses', 'tasks', 'fallos']
       });
     }
   }, onError);

@@ -23,8 +23,10 @@ import {
   Smartphone,
   Upload, // Added Upload icon
   FileSignature, // Added FileSignature for Promissory Notes
-  FileWarning // Added FileWarning for Fallos
+  FileWarning, // Added FileWarning for Fallos
+  LayoutGrid
 } from 'lucide-react';
+import { motion } from 'motion/react';
 
 import { Dashboard } from './components/Dashboard';
 import { Personnel } from './components/Personnel';
@@ -85,6 +87,7 @@ function App() {
   const [googleApiKey, setGoogleApiKey] = useState('');
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [appStatusColor, setAppStatusColor] = useState('#10B981'); 
+  const [mobileNavSections, setMobileNavSections] = useState<string[]>(['dashboard', 'personnel', 'expenses', 'tasks', 'fallos']);
   
   // Temp states for modal
   const [tempMascotaUrl, setTempMascotaUrl] = useState('');
@@ -93,6 +96,7 @@ function App() {
   const [tempGoogleApiKey, setTempGoogleApiKey] = useState('');
   const [tempAppVersion, setTempAppVersion] = useState('');
   const [tempAppStatusColor, setTempAppStatusColor] = useState('');
+  const [tempMobileNavSections, setTempMobileNavSections] = useState<string[]>([]);
   
   // API Key Testing State
   const [testingKey, setTestingKey] = useState(false);
@@ -331,6 +335,9 @@ function App() {
       setGoogleApiKey(settings.googleApiKey);
       setAppVersion(settings.appVersion);
       setAppStatusColor(settings.appStatusColor);
+      if (settings.mobileNavSections) {
+        setMobileNavSections(settings.mobileNavSections);
+      }
     }, (err) => handleError(err, 'GET', 'settings/global_config')));
 
     // Employees
@@ -427,6 +434,7 @@ function App() {
     setTempGoogleApiKey(googleApiKey);
     setTempAppVersion(appVersion);
     setTempAppStatusColor(appStatusColor);
+    setTempMobileNavSections([...mobileNavSections]);
     setKeyStatus('idle');
     setIsSettingsOpen(true);
     setUserMenuOpen(false);
@@ -495,7 +503,8 @@ function App() {
         mascotaUrl: tempMascotaUrl,
         googleApiKey: finalApiKey,
         appVersion: finalVersion,
-        appStatusColor: finalColor
+        appStatusColor: finalColor,
+        mobileNavSections: tempMobileNavSections
       });
 
       setMascotaUrl(tempMascotaUrl);
@@ -504,6 +513,7 @@ function App() {
       setGoogleApiKey(finalApiKey);
       setAppVersion(finalVersion);
       setAppStatusColor(finalColor);
+      setMobileNavSections(tempMobileNavSections);
       
       setIsSettingsOpen(false);
     } catch (e) {
@@ -713,9 +723,44 @@ function App() {
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 overflow-auto bg-gray-50/50">
+        <div className="flex-1 overflow-auto bg-gray-50/50 pb-20 lg:pb-0">
           {renderContent()}
         </div>
+
+        {/* Mobile Navigation Bar */}
+        <nav className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-white/80 backdrop-blur-xl border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-2xl z-40 px-2 py-2">
+          <div className="flex items-center justify-around">
+            {navItems
+              .filter(item => mobileNavSections.includes(item.id))
+              .map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`relative flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-300 ${
+                      isActive 
+                        ? 'text-indigo-600 bg-indigo-50/50' 
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    <Icon className={`w-6 h-6 ${isActive ? 'scale-110' : 'scale-100'} transition-transform`} />
+                    <span className={`text-[10px] font-bold mt-1 ${isActive ? 'opacity-100' : 'opacity-0 h-0'} transition-all`}>
+                      {item.label.split(' ')[0]}
+                    </span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute -bottom-1 w-1 h-1 bg-indigo-600 rounded-full"
+                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+          </div>
+        </nav>
       </main>
 
       {/* Settings Modal */}
@@ -815,6 +860,37 @@ function App() {
                        <span className="text-xs font-bold">PROBAR</span>}
                     </button>
                   </div>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 my-4 pt-4"></div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center">
+                  <LayoutGrid className="w-4 h-4 mr-2 text-indigo-600" /> Barra de Navegación Móvil
+                </label>
+                <p className="text-xs text-gray-500 mb-3">Selecciona las secciones que aparecerán en el menú inferior del celular.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {navItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (tempMobileNavSections.includes(item.id)) {
+                          setTempMobileNavSections(tempMobileNavSections.filter(id => id !== item.id));
+                        } else {
+                          setTempMobileNavSections([...tempMobileNavSections, item.id]);
+                        }
+                      }}
+                      className={`flex items-center p-2 rounded-lg border-2 transition-all text-left ${
+                        tempMobileNavSections.includes(item.id)
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                          : 'border-gray-100 bg-gray-50 text-gray-400 hover:border-gray-200'
+                      }`}
+                    >
+                      <item.icon className="w-4 h-4 mr-2" />
+                      <span className="text-xs font-medium truncate">{item.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
