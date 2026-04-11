@@ -349,26 +349,31 @@ function App() {
     // Plazas
     unsubscribers.push(subscribeToPlazas(setPlazas, (err) => handleError(err, 'LIST', 'plazas')));
     
-    // All Expenses
-    unsubscribers.push(subscribeToAllExpenses((data) => {
-      setExpenses(data);
-      setHasLoadedExpenses(true);
-    }, (err) => handleError(err, 'LIST', 'expenses')));
-    
     // Tasks
     unsubscribers.push(subscribeToTasks((data) => {
       setTasks(data);
       setHasLoadedTasks(true);
     }, (err) => handleError(err, 'LIST', 'tasks')));
-    
-    // All Fallos
-    unsubscribers.push(subscribeToAllFallos((data) => {
-      setFallos(data);
-      setHasLoadedFallos(true);
-    }, (err) => handleError(err, 'LIST', 'fallos')));
 
+    // Background loading for other sections to have them "ready" when navigating
+    // but without blocking the initial dashboard load
+    const backgroundTimeout = setTimeout(() => {
+      // All Expenses (Background)
+      unsubscribers.push(subscribeToAllExpenses((data) => {
+        setExpenses(data);
+        setHasLoadedExpenses(true);
+      }, (err) => handleError(err, 'LIST', 'expenses')));
+      
+      // All Fallos (Background)
+      unsubscribers.push(subscribeToAllFallos((data) => {
+        setFallos(data);
+        setHasLoadedFallos(true);
+      }, (err) => handleError(err, 'LIST', 'fallos')));
+    }, 1500); // 1.5s delay to let dashboard load first
+    
     return () => {
       unsubscribers.forEach(unsub => unsub());
+      clearTimeout(backgroundTimeout);
     };
   }, [currentUser?.id]);
 
@@ -389,6 +394,18 @@ function App() {
         setDashboardExpenses(data);
         setHasLoadedDashboard(true);
       }, (err) => handleError(err, 'LIST', 'expenses')));
+    } else if (activeTab === 'expenses' && !hasLoadedExpenses) {
+      // If user navigates to expenses before background load finishes
+      unsubscribers.push(subscribeToAllExpenses((data) => {
+        setExpenses(data);
+        setHasLoadedExpenses(true);
+      }, (err) => handleError(err, 'LIST', 'expenses')));
+    } else if (activeTab === 'fallos' && !hasLoadedFallos) {
+      // If user navigates to fallos before background load finishes
+      unsubscribers.push(subscribeToAllFallos((data) => {
+        setFallos(data);
+        setHasLoadedFallos(true);
+      }, (err) => handleError(err, 'LIST', 'fallos')));
     }
 
     return () => {
