@@ -16,10 +16,87 @@ import {
   writeBatch,
   startAfter,
   QueryDocumentSnapshot,
-  DocumentData
+  DocumentData,
+  onSnapshot
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { Employee, Expense, Task, TaskStatus, AppSettings, GeneratedImage, Plaza, Fallo } from "../types";
+
+// --- REAL-TIME SUBSCRIPTIONS ---
+
+export const subscribeToEmployees = (callback: (employees: Employee[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "employees"), orderBy("lastName"));
+  return onSnapshot(q, (snapshot) => {
+    const employees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+    callback(employees);
+  }, onError);
+};
+
+export const subscribeToPlazas = (callback: (plazas: Plaza[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "plazas"), orderBy("name"));
+  return onSnapshot(q, (snapshot) => {
+    const plazas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plaza));
+    callback(plazas);
+  }, onError);
+};
+
+export const subscribeToTasks = (callback: (tasks: Task[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "tasks"), orderBy("dueDate"));
+  return onSnapshot(q, (snapshot) => {
+    const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+    callback(tasks);
+  }, onError);
+};
+
+export const subscribeToAppSettings = (callback: (settings: AppSettings) => void, onError: (error: any) => void) => {
+  const docRef = doc(db, "settings", "global_config");
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const DEFINITIVE_KEY = "AQ.Ab8RN6KBWwPbT4jL9GDFk7CMbfhEvTyTUlnVJixCxGTp28mApg";
+      callback({
+        companyName: data.companyName || '',
+        mascotaName: data.mascotaName || 'Mascota',
+        mascotaUrl: data.mascotaUrl || '',
+        googleApiKey: data.googleApiKey || DEFINITIVE_KEY,
+        appVersion: data.appVersion || '1.0.0',
+        appStatusColor: data.appStatusColor || '#10B981'
+      });
+    }
+  }, onError);
+};
+
+export const subscribeToDashboardExpenses = (startDate: string, endDate: string, callback: (expenses: Expense[]) => void, onError: (error: any) => void) => {
+  const q = query(
+    collection(db, "expenses"), 
+    where("date", ">=", startDate), 
+    where("date", "<=", endDate),
+    orderBy("date", "desc")
+  );
+  return onSnapshot(q, (snapshot) => {
+    const expenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
+    callback(expenses);
+  }, onError);
+};
+
+// For paginated lists, we listen to the current "view" (first 20)
+export const subscribeToRecentExpenses = (callback: (expenses: Expense[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "expenses"), orderBy("date", "desc"), limit(20));
+  return onSnapshot(q, (snapshot) => {
+    const expenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
+    callback(expenses);
+  }, onError);
+};
+
+export const subscribeToRecentFallos = (callback: (fallos: Fallo[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "fallos"), orderBy("date", "desc"), limit(20));
+  return onSnapshot(q, (snapshot) => {
+    const fallos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
+    callback(fallos);
+  }, onError);
+};
+
+// -------------------------------
 
 const compressBase64 = (base64: string): Promise<string> => {
   return new Promise((resolve) => {

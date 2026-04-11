@@ -36,9 +36,24 @@ import { Login } from './components/Login';
 import { Assistant } from './components/Assistant'; 
 import { Fallos } from './components/Fallos';
 
-import { getEmployees, getExpenses, getExpensesByDateRange, getTasks, getAppSettings, updateAppSettings, getFallos } from './services/dbService';
+import { 
+  getEmployees, 
+  getExpenses, 
+  getExpensesByDateRange, 
+  getTasks, 
+  getAppSettings, 
+  updateAppSettings, 
+  getFallos,
+  subscribeToEmployees,
+  subscribeToTasks,
+  subscribeToAppSettings,
+  subscribeToDashboardExpenses,
+  subscribeToRecentExpenses,
+  subscribeToRecentFallos,
+  subscribeToPlazas
+} from './services/dbService';
 import { validateApiKey } from './services/geminiService';
-import { Employee, Expense, Task, Fallo } from './types';
+import { Employee, Expense, Task, Fallo, Plaza } from './types';
 
 function App() {
   // Auth State - Initialize from LocalStorage to persist session
@@ -96,6 +111,7 @@ function App() {
   const [dashboardExpenses, setDashboardExpenses] = useState<Expense[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [fallos, setFallos] = useState<Fallo[]>([]);
+  const [plazas, setPlazas] = useState<Plaza[]>([]);
   
   // Pagination State
   const [lastVisibleExpense, setLastVisibleExpense] = useState<any>(null);
@@ -109,6 +125,19 @@ function App() {
   const [hasLoadedDashboard, setHasLoadedDashboard] = useState(false);
   const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
   const [hasLoadedFallos, setHasLoadedFallos] = useState(false);
+
+  const handleFirestoreError = (error: any, operation: string, path: string) => {
+    const errInfo = {
+      error: error?.message || String(error),
+      operationType: operation,
+      path: path,
+      authInfo: {
+        userId: currentUser?.id,
+        email: currentUser?.email,
+      }
+    };
+    console.error('Firestore Error:', JSON.stringify(errInfo));
+  };
 
   // PWA: Listen for install prompt
   useEffect(() => {
@@ -303,25 +332,59 @@ function App() {
     }
   };
 
-  // Lazy load data based on active tab
+  // Real-time data subscriptions based on active tab
   useEffect(() => {
     if (!currentUser) return;
 
+    const unsubscribers: (() => void)[] = [];
+
+    const handleError = (error: any, op: string, path: string) => {
+      handleFirestoreError(error, op, path);
+    };
+
+    // Always subscribe to settings for real-time updates of company name, etc.
+    unsubscribers.push(subscribeToAppSettings((settings) => {
+      setCompanyName(settings.companyName);
+      setMascotaName(settings.mascotaName);
+      setMascotaUrl(settings.mascotaUrl);
+      setGoogleApiKey(settings.googleApiKey);
+      setAppVersion(settings.appVersion);
+      setAppStatusColor(settings.appStatusColor);
+    }, (err) => handleError(err, 'GET', 'settings/global_config')));
+
     if (activeTab === 'dashboard') {
-      fetchEmployees();
-      fetchDashboardExpenses();
-      fetchTasks();
+      unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
+      unsubscribers.push(subscribeToTasks(setTasks, (err) => handleError(err, 'LIST', 'tasks')));
+      
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      unsubscribers.push(subscribeToDashboardExpenses(firstDay, lastDay, setDashboardExpenses, (err) => handleError(err, 'LIST', 'expenses')));
     } else if (activeTab === 'personnel') {
-      fetchEmployees();
+      unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
+      unsubscribers.push(subscribeToPlazas(setPlazas, (err) => handleError(err, 'LIST', 'plazas')));
     } else if (activeTab === 'expenses') {
-      fetchExpenses();
+      // For the main list, we listen to the most recent 20
+      unsubscribers.push(subscribeToRecentExpenses((data) => {
+        setExpenses(data);
+        setHasLoadedExpenses(true);
+        setHasMoreExpenses(data.length === 20);
+      }, (err) => handleError(err, 'LIST', 'expenses')));
     } else if (activeTab === 'tasks') {
-      fetchTasks();
-      fetchEmployees(); // Tasks need employees for assignment
+      unsubscribers.push(subscribeToTasks(setTasks, (err) => handleError(err, 'LIST', 'tasks')));
+      unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
     } else if (activeTab === 'fallos') {
-      fetchFallos();
-      fetchEmployees(); // Fallos need employees for names
+      unsubscribers.push(subscribeToRecentFallos((data) => {
+        setFallos(data);
+        setHasLoadedFallos(true);
+        setHasMoreFallos(data.length === 20);
+      }, (err) => handleError(err, 'LIST', 'fallos')));
+      unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
     }
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
   }, [activeTab, currentUser?.id]);
 
   const handleLogin = (user: Employee) => {
@@ -495,7 +558,7 @@ function App() {
 
     switch (activeTab) {
       case 'dashboard': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
-      case 'personnel': return <Personnel employees={employees} refreshData={refreshData} />;
+      case 'personnel': return <Personnel employees={employees} plazas={plazas} refreshData={refreshData} />;
       case 'expenses': return <Expenses expenses={expenses} refreshData={refreshData} hasMore={hasMoreExpenses} onLoadMore={() => fetchExpenses(true)} />;
       case 'tasks': return <Tasks tasks={tasks} employees={employees} refreshData={refreshData} />;
       case 'promissory': return <PromissoryNotes companyName={companyName} />;

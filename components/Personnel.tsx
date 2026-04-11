@@ -2,11 +2,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Phone, Mail, User, MapPin, Filter, Layers, Pencil, Lock, Search, X, Building, Link as LinkIcon, FileSpreadsheet, UploadCloud, AlertTriangle, Download, CheckCircle, RefreshCcw, Users, Clipboard, LayoutGrid, Table, Cake, Loader2 } from 'lucide-react';
 import { Employee, PersonnelCategory, Plaza } from '../types';
-import { addEmployee, deleteEmployee, updateEmployee, getPlazas, addPlaza, deletePlaza, deleteAllEmployees, saveEmployeesBatch } from '../services/dbService';
+import { addEmployee, deleteEmployee, updateEmployee, addPlaza, deletePlaza, deleteAllEmployees, saveEmployeesBatch } from '../services/dbService';
 import * as XLSX from 'xlsx';
 
 interface PersonnelProps {
   employees: Employee[];
+  plazas: Plaza[];
   refreshData: () => void;
 }
 
@@ -30,7 +31,7 @@ const INITIAL_FORM_STATE = {
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const Personnel: React.FC<PersonnelProps> = ({ employees, refreshData }) => {
+export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, refreshData }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPlazaModalOpen, setIsPlazaModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -43,8 +44,6 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, refreshData }) 
   const [selectedPlazaFilter, setSelectedPlazaFilter] = useState('');
   const [selectedSupervisorFilter, setSelectedSupervisorFilter] = useState('');
   
-  // Plazas State
-  const [plazas, setPlazas] = useState<Plaza[]>([]);
   const [newPlazaName, setNewPlazaName] = useState('');
   
   const [formData, setFormData] = useState<Partial<Employee>>(INITIAL_FORM_STATE);
@@ -78,21 +77,6 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, refreshData }) 
         return nameA.localeCompare(nameB);
       });
   }, [employees]);
-
-  // Load Plazas on Mount
-  useEffect(() => {
-    fetchPlazas();
-  }, []);
-
-  const fetchPlazas = async () => {
-    try {
-      const data = await getPlazas();
-      const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
-      setPlazas(sorted);
-    } catch (e) {
-      console.error("Error loading plazas", e);
-    }
-  };
 
   const handlePasteAnalysis = () => {
     if (!importSupervisorId) {
@@ -436,7 +420,6 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, refreshData }) 
     try {
       await addPlaza(newPlazaName.trim());
       setNewPlazaName('');
-      fetchPlazas();
     } catch (e) {
       alert("Error al agregar plaza");
     }
@@ -446,7 +429,6 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, refreshData }) 
     if (confirm("¿Borrar esta plaza? Los empleados asignados mantendrán el nombre de la plaza pero ya no estará en la lista.")) {
       try {
         await deletePlaza(id);
-        fetchPlazas();
       } catch (e) {
         alert("Error al borrar plaza");
       }
