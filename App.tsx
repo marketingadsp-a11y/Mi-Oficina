@@ -334,7 +334,10 @@ function App() {
     }, (err) => handleError(err, 'GET', 'settings/global_config')));
 
     // Employees
-    unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
+    unsubscribers.push(subscribeToEmployees((data) => {
+      setEmployees(data);
+      setHasLoadedEmployees(true);
+    }, (err) => handleError(err, 'LIST', 'employees')));
     
     // Plazas
     unsubscribers.push(subscribeToPlazas(setPlazas, (err) => handleError(err, 'LIST', 'plazas')));
@@ -346,7 +349,10 @@ function App() {
     }, (err) => handleError(err, 'LIST', 'expenses')));
     
     // Tasks
-    unsubscribers.push(subscribeToTasks(setTasks, (err) => handleError(err, 'LIST', 'tasks')));
+    unsubscribers.push(subscribeToTasks((data) => {
+      setTasks(data);
+      setHasLoadedTasks(true);
+    }, (err) => handleError(err, 'LIST', 'tasks')));
     
     // All Fallos
     unsubscribers.push(subscribeToAllFallos((data) => {
@@ -372,7 +378,10 @@ function App() {
       const now = new Date();
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-      unsubscribers.push(subscribeToDashboardExpenses(firstDay, lastDay, setDashboardExpenses, (err) => handleError(err, 'LIST', 'expenses')));
+      unsubscribers.push(subscribeToDashboardExpenses(firstDay, lastDay, (data) => {
+        setDashboardExpenses(data);
+        setHasLoadedDashboard(true);
+      }, (err) => handleError(err, 'LIST', 'expenses')));
     }
 
     return () => {
@@ -541,10 +550,36 @@ function App() {
   ];
 
   const renderContent = () => {
-    if (loading) {
+    // Check if data for the current tab is ready
+    const isDashboardReady = hasLoadedEmployees && hasLoadedTasks && hasLoadedDashboard;
+    const isPersonnelReady = hasLoadedEmployees;
+    const isExpensesReady = hasLoadedExpenses;
+    const isTasksReady = hasLoadedTasks && hasLoadedEmployees;
+    const isFallosReady = hasLoadedFallos && hasLoadedEmployees;
+
+    let isTabReady = true;
+    if (activeTab === 'dashboard') isTabReady = isDashboardReady;
+    else if (activeTab === 'personnel') isTabReady = isPersonnelReady;
+    else if (activeTab === 'expenses') isTabReady = isExpensesReady;
+    else if (activeTab === 'tasks') isTabReady = isTasksReady;
+    else if (activeTab === 'fallos') isTabReady = isFallosReady;
+
+    if (loading || !isTabReady) {
       return (
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="flex flex-col items-center justify-center h-full bg-gray-50/30">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-600"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+               <div className="w-8 h-8 bg-indigo-100 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+          <p className="mt-4 text-gray-500 font-medium animate-pulse">Cargando datos de la oficina...</p>
+          {!isOnline && (
+            <div className="mt-2 flex items-center text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-100 text-xs font-bold animate-bounce">
+              <AlertCircle className="w-3 h-3 mr-1" /> Sin conexión a Internet
+            </div>
+          )}
+          <p className="text-[10px] text-gray-400 mt-2">Sincronizando con la base de datos en tiempo real</p>
         </div>
       );
     }
