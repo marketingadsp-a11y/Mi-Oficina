@@ -79,17 +79,17 @@ export const subscribeToDashboardExpenses = (startDate: string, endDate: string,
   }, onError);
 };
 
-// For paginated lists, we listen to the current "view" (first 20)
-export const subscribeToRecentExpenses = (callback: (expenses: Expense[]) => void, onError: (error: any) => void) => {
-  const q = query(collection(db, "expenses"), orderBy("date", "desc"), limit(20));
+// For full lists, we listen to all records
+export const subscribeToAllExpenses = (callback: (expenses: Expense[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "expenses"), orderBy("date", "desc"));
   return onSnapshot(q, (snapshot) => {
     const expenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
     callback(expenses);
   }, onError);
 };
 
-export const subscribeToRecentFallos = (callback: (fallos: Fallo[]) => void, onError: (error: any) => void) => {
-  const q = query(collection(db, "fallos"), orderBy("date", "desc"), limit(20));
+export const subscribeToAllFallos = (callback: (fallos: Fallo[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "fallos"), orderBy("date", "desc"));
   return onSnapshot(q, (snapshot) => {
     const fallos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
     callback(fallos);
@@ -238,15 +238,10 @@ export const deletePlaza = async (id: string) => {
   return await deleteDoc(doc(db, "plazas", id));
 };
 
-export const getExpenses = async (lastDoc?: QueryDocumentSnapshot<DocumentData>): Promise<{ data: Expense[], lastVisible: QueryDocumentSnapshot<DocumentData> | null }> => {
-  let q = query(collection(db, "expenses"), orderBy("date", "desc"), limit(20));
-  if (lastDoc) {
-    q = query(collection(db, "expenses"), orderBy("date", "desc"), startAfter(lastDoc), limit(20));
-  }
+export const getExpenses = async (): Promise<Expense[]> => {
+  const q = query(collection(db, "expenses"), orderBy("date", "desc"));
   const querySnapshot = await getDocs(q);
-  const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
-  const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
-  return { data, lastVisible };
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
 };
 
 export const addExpense = async (expense: Omit<Expense, 'id'>) => {
@@ -396,15 +391,10 @@ export const saveDailyBirthdayCard = async (employeeId: string, imageUrl: string
 
 // --- FALLOS / DOCUMENTOS ---
 
-export const getFallos = async (lastDoc?: QueryDocumentSnapshot<DocumentData>): Promise<{ data: Fallo[], lastVisible: QueryDocumentSnapshot<DocumentData> | null }> => {
-  let q = query(collection(db, "fallos"), orderBy("date", "desc"), limit(20));
-  if (lastDoc) {
-    q = query(collection(db, "fallos"), orderBy("date", "desc"), startAfter(lastDoc), limit(20));
-  }
+export const getFallos = async (): Promise<Fallo[]> => {
+  const q = query(collection(db, "fallos"), orderBy("date", "desc"));
   const querySnapshot = await getDocs(q);
-  const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
-  const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
-  return { data, lastVisible };
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
 };
 
 export const addFallo = async (fallo: Omit<Fallo, 'id'>) => {

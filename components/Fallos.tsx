@@ -9,13 +9,11 @@ interface FallosProps {
   employees: Employee[];
   fallos: Fallo[];
   refreshData: () => void;
-  hasMore: boolean;
-  onLoadMore: () => void;
 }
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const Fallos: React.FC<FallosProps> = ({ employees, fallos, refreshData, hasMore, onLoadMore }) => {
+export const Fallos: React.FC<FallosProps> = ({ employees, fallos, refreshData }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
@@ -520,17 +518,6 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, refreshData, 
           })
         )}
       </div>
-
-      {hasMore && (
-        <div className="flex justify-center pt-4">
-          <button 
-            onClick={onLoadMore}
-            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-6 py-2 rounded-xl font-bold shadow-sm transition-all flex items-center"
-          >
-            <ChevronDown className="w-5 h-5 mr-2" /> Cargar más documentos
-          </button>
-        </div>
-      )}
 
       {/* SUCCESS MODAL */}
       {showSuccessModal && (

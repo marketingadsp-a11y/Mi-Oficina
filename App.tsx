@@ -48,8 +48,8 @@ import {
   subscribeToTasks,
   subscribeToAppSettings,
   subscribeToDashboardExpenses,
-  subscribeToRecentExpenses,
-  subscribeToRecentFallos,
+  subscribeToAllExpenses,
+  subscribeToAllFallos,
   subscribeToPlazas
 } from './services/dbService';
 import { validateApiKey } from './services/geminiService';
@@ -113,12 +113,6 @@ function App() {
   const [fallos, setFallos] = useState<Fallo[]>([]);
   const [plazas, setPlazas] = useState<Plaza[]>([]);
   
-  // Pagination State
-  const [lastVisibleExpense, setLastVisibleExpense] = useState<any>(null);
-  const [lastVisibleFallo, setLastVisibleFallo] = useState<any>(null);
-  const [hasMoreExpenses, setHasMoreExpenses] = useState(true);
-  const [hasMoreFallos, setHasMoreFallos] = useState(true);
-
   // Loading flags for lazy loading
   const [hasLoadedEmployees, setHasLoadedEmployees] = useState(false);
   const [hasLoadedExpenses, setHasLoadedExpenses] = useState(false);
@@ -260,19 +254,13 @@ function App() {
     }
   };
 
-  const fetchExpenses = async (loadMore = false) => {
-    if (!loadMore && hasLoadedExpenses) return;
+  const fetchExpenses = async () => {
+    if (hasLoadedExpenses) return;
     setLoading(true);
     try {
-      const { data, lastVisible } = await getExpenses(loadMore ? lastVisibleExpense : undefined);
-      if (loadMore) {
-        setExpenses(prev => [...prev, ...data]);
-      } else {
-        setExpenses(data);
-        setHasLoadedExpenses(true);
-      }
-      setLastVisibleExpense(lastVisible);
-      setHasMoreExpenses(data.length === 20);
+      const data = await getExpenses();
+      setExpenses(data);
+      setHasLoadedExpenses(true);
     } catch (e) {
       console.error("Error fetching expenses", e);
     } finally {
@@ -294,19 +282,13 @@ function App() {
     }
   };
 
-  const fetchFallos = async (loadMore = false) => {
-    if (!loadMore && hasLoadedFallos) return;
+  const fetchFallos = async () => {
+    if (hasLoadedFallos) return;
     setLoading(true);
     try {
-      const { data, lastVisible } = await getFallos(loadMore ? lastVisibleFallo : undefined);
-      if (loadMore) {
-        setFallos(prev => [...prev, ...data]);
-      } else {
-        setFallos(data);
-        setHasLoadedFallos(true);
-      }
-      setLastVisibleFallo(lastVisible);
-      setHasMoreFallos(data.length === 20);
+      const data = await getFallos();
+      setFallos(data);
+      setHasLoadedFallos(true);
     } catch (e) {
       console.error("Error fetching fallos", e);
     } finally {
@@ -364,20 +346,18 @@ function App() {
       unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
       unsubscribers.push(subscribeToPlazas(setPlazas, (err) => handleError(err, 'LIST', 'plazas')));
     } else if (activeTab === 'expenses') {
-      // For the main list, we listen to the most recent 20
-      unsubscribers.push(subscribeToRecentExpenses((data) => {
+      // For the main list, we listen to all records
+      unsubscribers.push(subscribeToAllExpenses((data) => {
         setExpenses(data);
         setHasLoadedExpenses(true);
-        setHasMoreExpenses(data.length === 20);
       }, (err) => handleError(err, 'LIST', 'expenses')));
     } else if (activeTab === 'tasks') {
       unsubscribers.push(subscribeToTasks(setTasks, (err) => handleError(err, 'LIST', 'tasks')));
       unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
     } else if (activeTab === 'fallos') {
-      unsubscribers.push(subscribeToRecentFallos((data) => {
+      unsubscribers.push(subscribeToAllFallos((data) => {
         setFallos(data);
         setHasLoadedFallos(true);
-        setHasMoreFallos(data.length === 20);
       }, (err) => handleError(err, 'LIST', 'fallos')));
       unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
     }
@@ -559,10 +539,10 @@ function App() {
     switch (activeTab) {
       case 'dashboard': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
       case 'personnel': return <Personnel employees={employees} plazas={plazas} refreshData={refreshData} />;
-      case 'expenses': return <Expenses expenses={expenses} refreshData={refreshData} hasMore={hasMoreExpenses} onLoadMore={() => fetchExpenses(true)} />;
+      case 'expenses': return <Expenses expenses={expenses} refreshData={refreshData} />;
       case 'tasks': return <Tasks tasks={tasks} employees={employees} refreshData={refreshData} />;
       case 'promissory': return <PromissoryNotes companyName={companyName} />;
-      case 'fallos': return <Fallos employees={employees} fallos={fallos} refreshData={refreshData} hasMore={hasMoreFallos} onLoadMore={() => fetchFallos(true)} />;
+      case 'fallos': return <Fallos employees={employees} fallos={fallos} refreshData={refreshData} />;
       case 'mascota': return <Mascota mascotaUrl={mascotaUrl} mascotaName={mascotaName} onOpenSettings={handleOpenSettings} />;
       default: return <Dashboard currentUser={currentUser} employees={employees} expenses={expenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
     }
