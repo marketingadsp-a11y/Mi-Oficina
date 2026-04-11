@@ -6,7 +6,6 @@ import { addTask, updateTaskStatus, deleteTask, updateTask } from '../services/d
 interface TasksProps {
   tasks: Task[];
   employees: Employee[];
-  refreshData: () => void;
   isLoading?: boolean;
 }
 
@@ -19,7 +18,7 @@ const INITIAL_FORM_STATE = {
   assignedTo: ''
 };
 
-export const Tasks: React.FC<TasksProps> = ({ tasks, employees, refreshData, isLoading }) => {
+export const Tasks: React.FC<TasksProps> = ({ tasks, employees, isLoading }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,7 +68,6 @@ export const Tasks: React.FC<TasksProps> = ({ tasks, employees, refreshData, isL
       setIsDeliveryModalOpen(false);
       setDeliveringTask(null);
       setDeliveryFile('');
-      refreshData();
     } else {
       alert("Por favor sube un archivo para entregar la tarea.");
     }
@@ -115,13 +113,11 @@ export const Tasks: React.FC<TasksProps> = ({ tasks, employees, refreshData, isL
         await addTask(formData as Omit<Task, 'id'>);
       }
       setIsModalOpen(false);
-      refreshData();
     }
   };
 
   const handleStatusChange = async (task: Task, newStatus: TaskStatus) => {
     await updateTaskStatus(task.id, newStatus);
-    refreshData();
   };
 
   const getPriorityColor = (p: string) => {
@@ -171,7 +167,7 @@ export const Tasks: React.FC<TasksProps> = ({ tasks, employees, refreshData, isL
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button 
-                      onClick={() => { if(confirm('¿Eliminar?')) { deleteTask(task.id); refreshData(); }}} 
+                      onClick={() => { if(confirm('¿Eliminar?')) { deleteTask(task.id); }}} 
                       className="text-gray-300 hover:text-red-500 hover:bg-red-50 rounded p-1"
                       title="Eliminar"
                     >

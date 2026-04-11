@@ -8,13 +8,12 @@ import { saveAs } from 'file-saver';
 interface FallosProps {
   employees: Employee[];
   fallos: Fallo[];
-  refreshData: () => void;
   isLoading?: boolean;
 }
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const Fallos: React.FC<FallosProps> = ({ employees, fallos, refreshData, isLoading }) => {
+export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
@@ -203,7 +202,6 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, refreshData, 
 
       setIsModalOpen(false);
       setShowSuccessModal(true);
-      refreshData();
     } catch (error) {
       console.error("Error saving fallo:", error);
       alert("Error al guardar el documento. " + (error as any).message);
@@ -215,7 +213,6 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, refreshData, 
   const handleDelete = async (id: string) => {
     if (confirm("¿Estás seguro de eliminar este documento?")) {
       await deleteFallo(id);
-      refreshData();
     }
   };
 

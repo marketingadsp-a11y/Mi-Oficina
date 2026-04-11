@@ -8,11 +8,10 @@ import autoTable from 'jspdf-autotable';
 
 interface ExpensesProps {
   expenses: Expense[];
-  refreshData: () => void;
   isLoading?: boolean;
 }
 
-export const Expenses: React.FC<ExpensesProps> = ({ expenses, refreshData, isLoading }) => {
+export const Expenses: React.FC<ExpensesProps> = ({ expenses, isLoading }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewTicketImage, setViewTicketImage] = useState<string | null>(null); // State for viewing image
   
@@ -226,7 +225,6 @@ export const Expenses: React.FC<ExpensesProps> = ({ expenses, refreshData, isLoa
         setIsModalOpen(false);
         setFormData({ description: '', amount: 0, category: 'Oficina', date: new Date().toISOString().split('T')[0], ticketImage: '' });
         setEditingId(null);
-        refreshData();
       }
     } catch (error) {
       console.error(error);
@@ -250,7 +248,6 @@ export const Expenses: React.FC<ExpensesProps> = ({ expenses, refreshData, isLoa
   const handleDelete = async (id: string) => {
     if (confirm('¿Eliminar gasto?')) {
       await deleteExpense(id);
-      refreshData();
     }
   };
 

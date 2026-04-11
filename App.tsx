@@ -410,22 +410,6 @@ function App() {
     setUserMenuOpen(false);
   };
 
-  const refreshData = () => {
-    // Force reload current tab data
-    if (activeTab === 'personnel') { setHasLoadedEmployees(false); fetchEmployees(); }
-    else if (activeTab === 'expenses') { setHasLoadedExpenses(false); fetchExpenses(); }
-    else if (activeTab === 'tasks') { setHasLoadedTasks(false); fetchTasks(); }
-    else if (activeTab === 'fallos') { setHasLoadedFallos(false); fetchFallos(); }
-    else if (activeTab === 'dashboard') {
-      setHasLoadedEmployees(false);
-      setHasLoadedExpenses(false);
-      setHasLoadedTasks(false);
-      fetchEmployees();
-      fetchExpenses();
-      fetchTasks();
-    }
-  };
-
   const handleInstallApp = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -586,11 +570,11 @@ function App() {
 
     switch (activeTab) {
       case 'dashboard': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
-      case 'personnel': return <Personnel employees={employees} plazas={plazas} refreshData={refreshData} isLoading={!hasLoadedEmployees} />;
-      case 'expenses': return <Expenses expenses={expenses} refreshData={refreshData} isLoading={!hasLoadedExpenses} />;
-      case 'tasks': return <Tasks tasks={tasks} employees={employees} refreshData={refreshData} isLoading={!hasLoadedTasks} />;
+      case 'personnel': return <Personnel employees={employees} plazas={plazas} isLoading={!hasLoadedEmployees} />;
+      case 'expenses': return <Expenses expenses={expenses} isLoading={!hasLoadedExpenses} />;
+      case 'tasks': return <Tasks tasks={tasks} employees={employees} isLoading={!hasLoadedTasks} />;
       case 'promissory': return <PromissoryNotes companyName={companyName} />;
-      case 'fallos': return <Fallos employees={employees} fallos={fallos} refreshData={refreshData} isLoading={!hasLoadedFallos} />;
+      case 'fallos': return <Fallos employees={employees} fallos={fallos} isLoading={!hasLoadedFallos} />;
       case 'mascota': return <Mascota mascotaUrl={mascotaUrl} mascotaName={mascotaName} onOpenSettings={handleOpenSettings} />;
       default: return <Dashboard currentUser={currentUser} employees={employees} expenses={expenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
     }

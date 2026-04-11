@@ -8,7 +8,6 @@ import * as XLSX from 'xlsx';
 interface PersonnelProps {
   employees: Employee[];
   plazas: Plaza[];
-  refreshData: () => void;
   isLoading?: boolean;
 }
 
@@ -32,7 +31,7 @@ const INITIAL_FORM_STATE = {
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, refreshData, isLoading }) => {
+export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoading }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPlazaModalOpen, setIsPlazaModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -276,8 +275,6 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, refresh
       setIsModalOpen(false);
       setFormData(INITIAL_FORM_STATE);
       setEditingId(null);
-      refreshData();
-      
     } catch (error) {
       console.error(error);
       alert('Error al guardar empleado');
@@ -289,7 +286,6 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, refresh
   const handleDelete = async (id: string) => {
     if (confirm('¿Estás seguro de eliminar este empleado?')) {
       await deleteEmployee(id);
-      refreshData();
     }
   };
 
@@ -394,8 +390,6 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, refresh
       
       // Success
       setImportStep('success');
-      refreshData();
-
     } catch (e) {
       console.error(e);
       alert("Error durante la importación masiva.");
