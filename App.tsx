@@ -728,7 +728,17 @@ function App() {
         </div>
 
         {/* Mobile Navigation Bar */}
-        <nav className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-white/80 backdrop-blur-xl border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-2xl z-40 px-2 py-2">
+        <motion.nav 
+          animate={{ 
+            boxShadow: [
+              "0 8px 32px rgba(79, 70, 229, 0.15)", 
+              "0 8px 48px rgba(79, 70, 229, 0.4)", 
+              "0 8px 32px rgba(79, 70, 229, 0.15)"
+            ] 
+          }}
+          transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+          className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-white/90 backdrop-blur-xl border-2 border-indigo-500/50 rounded-2xl z-40 px-2 py-2"
+        >
           <div className="flex items-center justify-around">
             {navItems
               .filter(item => mobileNavSections.includes(item.id))
@@ -760,7 +770,7 @@ function App() {
                 );
               })}
           </div>
-        </nav>
+        </motion.nav>
       </main>
 
       {/* Settings Modal */}

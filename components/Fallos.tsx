@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, Upload, Trash2, X, FileWarning, User, Users, Eye, ChevronDown, ChevronRight, Calendar, Download, Share2, CheckCircle, Loader2 } from 'lucide-react';
 import { Employee, Fallo } from '../types';
 import { addFallo, deleteFallo } from '../services/dbService';
@@ -28,6 +28,9 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) 
   // Expanded states for dates and groups
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [lastUsedGroup, setLastUsedGroup] = useState<{name: string, id: string} | null>(null);
+  const [autoTriggerCamera, setAutoTriggerCamera] = useState(false);
 
   // Share Functionality
   const handleShare = async (imageUrl: string, description: string) => {
@@ -120,7 +123,12 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) 
     setExpandedDates(prev => ({ ...prev, [date]: !prev[date] }));
   };
 
-  // Toggle Group Expansion (keyed by "Date-Group")
+  useEffect(() => {
+    if (isModalOpen && autoTriggerCamera && fileInputRef.current) {
+      fileInputRef.current.click();
+      setAutoTriggerCamera(false);
+    }
+  }, [isModalOpen, autoTriggerCamera]);
   const toggleGroup = (date: string, group: string) => {
     const key = `${date}-${group}`;
     setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
@@ -190,16 +198,20 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) 
     
     setLoading(true);
     try {
+      const groupName = formData.groupName || 'Sin Grupo';
+      const promotoraId = formData.promotoraId || '';
+      
       await addFallo({
         description: 'Fallo / Documento',
         imageUrl: formData.imageUrl,
         date: formData.date || getLocalDateString(),
-        promotoraId: formData.promotoraId || '',
+        promotoraId: promotoraId,
         promotoraName: formData.promotoraName || '',
-        groupName: formData.groupName || 'Sin Grupo',
+        groupName: groupName,
         createdAt: new Date().toISOString()
       } as Omit<Fallo, 'id'>);
 
+      setLastUsedGroup({ name: groupName, id: promotoraId });
       setIsModalOpen(false);
       setShowSuccessModal(true);
     } catch (error) {
@@ -340,7 +352,7 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) 
         <div className="flex gap-2">
           <button 
             onClick={() => setIsDownloadModalOpen(true)}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center shadow-sm transition-colors"
+            className="hidden md:flex bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg items-center shadow-sm transition-colors"
           >
             <Download className="w-5 h-5 mr-2" /> Descargar Masivo
           </button>
@@ -533,6 +545,27 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) 
             <p className="text-gray-500 mb-6">El fallo se ha guardado correctamente.</p>
             
             <div className="space-y-3">
+              {lastUsedGroup && (
+                <button 
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    setFormData({
+                      description: '',
+                      date: getPreviousSaturday(),
+                      promotoraId: lastUsedGroup.id,
+                      groupName: lastUsedGroup.name,
+                      imageUrl: ''
+                    });
+                    setGroupSearch(lastUsedGroup.name);
+                    setAutoTriggerCamera(true);
+                    setIsModalOpen(true);
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-medium shadow-md transition-colors"
+                >
+                  Subir otro al mismo grupo
+                </button>
+              )}
+              
               <button 
                 onClick={() => {
                   setShowSuccessModal(false);
@@ -654,41 +687,7 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) 
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Image Upload */}
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors relative">
-                {formData.imageUrl ? (
-                  <div className="relative h-40 mx-auto">
-                    <img src={formData.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-lg" />
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setFormData({...formData, imageUrl: ''});
-                      }}
-                      className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md text-red-500"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <label className="cursor-pointer block p-4">
-                    <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                    <span className="text-sm text-gray-600 font-medium">Click para tomar foto o subir archivo</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                  </label>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">Fecha del Prestamo</label>
-                <input 
-                  type="date" 
-                  required
-                  className="w-full border p-2 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm"
-                  value={formData.date}
-                  onChange={e => setFormData({...formData, date: e.target.value})}
-                />
-              </div>
-
+              {/* Group Search - NOW AT THE TOP */}
               <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-3">
                 <div className="relative">
                   <label className="block text-xs font-bold text-gray-500 mb-1 flex items-center">
@@ -744,6 +743,49 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) 
                     />
                   )}
                 </div>
+              </div>
+
+              {/* Image Upload */}
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors relative">
+                {formData.imageUrl ? (
+                  <div className="relative h-40 mx-auto">
+                    <img src={formData.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-lg" />
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setFormData({...formData, imageUrl: ''});
+                      }}
+                      className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md text-red-500"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer block p-4">
+                    <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                    <span className="text-sm text-gray-600 font-medium">Click para tomar foto o subir archivo</span>
+                    <p className="text-[10px] text-orange-500 mt-1 font-bold italic">Favor de tomar la foto en HORIZONTAL</p>
+                    <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment"
+                      className="hidden" 
+                      onChange={handleImageUpload} 
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">Fecha del Prestamo</label>
+                <input 
+                  type="date" 
+                  required
+                  className="w-full border p-2 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                  value={formData.date}
+                  onChange={e => setFormData({...formData, date: e.target.value})}
+                />
               </div>
 
               <button 
