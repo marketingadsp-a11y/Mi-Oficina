@@ -27,9 +27,10 @@ interface DashboardProps {
   mascotaUrl: string;
   mascotaName: string;
   companyName: string;
+  birthdayPrompt?: string;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ currentUser, employees, expenses, tasks, mascotaUrl, mascotaName, companyName }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ currentUser, employees, expenses, tasks, mascotaUrl, mascotaName, companyName, birthdayPrompt }) => {
   
   // Birthday Logic State
   const [birthdayImage, setBirthdayImage] = useState<string | null>(null);
@@ -111,8 +112,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, employees, ex
     try {
       const base64Ref = await urlToBase64(mascotaUrl);
       if (base64Ref) {
-        // Prompt optimizado para estilo 3D festivo y texto claro
-        const prompt = `Genera una tarjeta de felicitación de cumpleaños estilo Render 3D Pixar de ALTA CALIDAD.
+        // Use custom prompt if available, otherwise use default
+        const defaultPrompt = `Genera una tarjeta de felicitación de cumpleaños estilo Render 3D Pixar de ALTA CALIDAD.
         
         ELEMENTOS:
         1. TEXTO: En la parte superior, grande, 3D y brillante: "Feliz Cumpleaños ${person.firstName} ${person.lastName}". El texto debe ser el protagonista.
@@ -120,8 +121,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, employees, ex
         3. AMBIENTE: Fondo festivo con desenfoque (bokeh), confeti cayendo, globos de colores vivos (Predominantemente AZULES, dorados y blancos). Iluminación de estudio cálida y mágica.
         
         Composición centrada, estilo profesional y alegre. Evita el color rosa.`;
+
+        const finalPrompt = birthdayPrompt 
+          ? birthdayPrompt
+              .replace(/\${person.firstName}/g, person.firstName)
+              .replace(/\${person.lastName}/g, person.lastName)
+              .replace(/\${person.position}/g, person.position || '')
+              .replace(/\${person.plaza}/g, person.plaza || '')
+              .replace(/\${person.groupName}/g, person.groupName || '')
+          : defaultPrompt;
         
-        const result = await generateMascotaImage(base64Ref, prompt);
+        const result = await generateMascotaImage(base64Ref, finalPrompt);
         if (result.imageUrl) {
           setBirthdayImage(result.imageUrl);
           // Save to Database so everyone sees the same image

@@ -61,7 +61,8 @@ export const subscribeToAppSettings = (callback: (settings: AppSettings) => void
         googleApiKey: data.googleApiKey || DEFINITIVE_KEY,
         appVersion: data.appVersion || '1.0.0',
         appStatusColor: data.appStatusColor || '#10B981',
-        mobileNavSections: data.mobileNavSections || ['dashboard', 'personnel', 'expenses', 'tasks', 'fallos']
+        mobileNavSections: data.mobileNavSections || ['dashboard', 'personnel', 'expenses', 'tasks', 'fallos'],
+        birthdayPrompt: data.birthdayPrompt || ''
       });
     }
   }, onError);
@@ -80,17 +81,22 @@ export const subscribeToDashboardExpenses = (startDate: string, endDate: string,
   }, onError);
 };
 
-// For full lists, we listen to all records
-export const subscribeToAllExpenses = (callback: (expenses: Expense[]) => void, onError: (error: any) => void) => {
-  const q = query(collection(db, "expenses"), orderBy("date", "desc"));
+export const subscribeToAllExpenses = (callback: (expenses: Expense[]) => void, onError: (error: any) => void, limitCount: number = 100) => {
+  const q = limitCount > 0 
+    ? query(collection(db, "expenses"), orderBy("date", "desc"), limit(limitCount))
+    : query(collection(db, "expenses"), orderBy("date", "desc"));
+    
   return onSnapshot(q, (snapshot) => {
     const expenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
     callback(expenses);
   }, onError);
 };
 
-export const subscribeToAllFallos = (callback: (fallos: Fallo[]) => void, onError: (error: any) => void) => {
-  const q = query(collection(db, "fallos"), orderBy("date", "desc"));
+export const subscribeToAllFallos = (callback: (fallos: Fallo[]) => void, onError: (error: any) => void, limitCount: number = 100) => {
+  const q = limitCount > 0
+    ? query(collection(db, "fallos"), orderBy("date", "desc"), limit(limitCount))
+    : query(collection(db, "fallos"), orderBy("date", "desc"));
+
   return onSnapshot(q, (snapshot) => {
     const fallos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
     callback(fallos);
@@ -240,7 +246,7 @@ export const deletePlaza = async (id: string) => {
 };
 
 export const getExpenses = async (): Promise<Expense[]> => {
-  const q = query(collection(db, "expenses"), orderBy("date", "desc"));
+  const q = query(collection(db, "expenses"), orderBy("date", "desc"), limit(100));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
 };
@@ -311,7 +317,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         mascotaUrl: data.mascotaUrl || '',
         googleApiKey: data.googleApiKey || DEFINITIVE_KEY,
         appVersion: data.appVersion || '1.0.0',
-        appStatusColor: data.appStatusColor || '#10B981'
+        appStatusColor: data.appStatusColor || '#10B981',
+        birthdayPrompt: data.birthdayPrompt || ''
       };
     } else {
       return {
@@ -320,7 +327,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         mascotaUrl: '',
         googleApiKey: DEFINITIVE_KEY,
         appVersion: '1.0.0',
-        appStatusColor: '#10B981'
+        appStatusColor: '#10B981',
+        birthdayPrompt: ''
       };
     }
   } catch (error) {
@@ -331,7 +339,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
       mascotaUrl: '', 
       googleApiKey: 'AQ.Ab8RN6KBWwPbT4jL9GDFk7CMbfhEvTyTUlnVJixCxGTp28mApg',
       appVersion: '1.0.0',
-      appStatusColor: '#10B981'
+      appStatusColor: '#10B981',
+      birthdayPrompt: ''
     };
   }
 };
@@ -393,7 +402,7 @@ export const saveDailyBirthdayCard = async (employeeId: string, imageUrl: string
 // --- FALLOS / DOCUMENTOS ---
 
 export const getFallos = async (): Promise<Fallo[]> => {
-  const q = query(collection(db, "fallos"), orderBy("date", "desc"));
+  const q = query(collection(db, "fallos"), orderBy("date", "desc"), limit(100));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
 };

@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, Tag, Calendar, ChevronLeft, ChevronRight, FileText, Upload, Image as ImageIcon, X, Eye, Edit, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Plus, Trash2, Tag, Calendar, ChevronLeft, ChevronRight, FileText, Upload, Image as ImageIcon, X, Eye, Edit, ChevronDown, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Expense } from '../types';
 import { addExpense, deleteExpense, updateExpense } from '../services/dbService';
 import jsPDF from 'jspdf';
@@ -9,9 +10,12 @@ import autoTable from 'jspdf-autotable';
 interface ExpensesProps {
   expenses: Expense[];
   isLoading?: boolean;
+  loadAll?: boolean;
+  isSyncing?: boolean;
+  onLoadAll?: () => void;
 }
 
-export const Expenses: React.FC<ExpensesProps> = ({ expenses, isLoading }) => {
+export const Expenses: React.FC<ExpensesProps> = ({ expenses, isLoading, loadAll, isSyncing, onLoadAll }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewTicketImage, setViewTicketImage] = useState<string | null>(null); // State for viewing image
   
@@ -257,6 +261,63 @@ export const Expenses: React.FC<ExpensesProps> = ({ expenses, isLoading }) => {
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Control de Gastos</h2>
           <p className="text-sm text-gray-500">Gestión semanal (Sábado a Viernes)</p>
+        </div>
+
+        {/* Syncing Progress Bar */}
+        <AnimatePresence>
+          {isSyncing && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex flex-col gap-2 shadow-sm flex-1 max-w-md"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-indigo-700 font-bold text-[10px]">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Sincronizando historial completo...
+                </div>
+              </div>
+              <div className="w-full bg-indigo-100 rounded-full h-1 overflow-hidden">
+                <motion.div 
+                  className="bg-indigo-600 h-full"
+                  initial={{ width: "0%" }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 15, ease: "linear" }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center gap-3 flex-1">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+          <div className="flex-1">
+            <p className="text-[10px] text-amber-800">
+              {loadAll 
+                ? "Se están mostrando todos los gastos registrados." 
+                : "Para mantener la velocidad, solo se muestran los últimos 300 gastos."}
+            </p>
+            {!loadAll && onLoadAll && (
+              <button 
+                onClick={onLoadAll}
+                disabled={isSyncing}
+                className="mt-1 flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-lg text-[10px] font-bold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSyncing ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Cargando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3 h-3" />
+                    Cargar Todo
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">

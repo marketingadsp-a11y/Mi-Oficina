@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Users, 
@@ -24,7 +25,9 @@ import {
   Upload, // Added Upload icon
   FileSignature, // Added FileSignature for Promissory Notes
   FileWarning, // Added FileWarning for Fallos
-  LayoutGrid
+  LayoutGrid,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -71,6 +74,27 @@ function App() {
 
   // App State
   const [activeTab, setActiveTab] = useState('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Sync activeTab with URL
+  useEffect(() => {
+    const path = location.pathname.substring(1);
+    if (path && navItems.some(item => item.id === path)) {
+      setActiveTab(path);
+    } else if (location.pathname === '/') {
+      setActiveTab('dashboard');
+    }
+  }, [location.pathname]);
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    if (tabId === 'dashboard') {
+      navigate('/');
+    } else {
+      navigate(`/${tabId}`);
+    }
+  };
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   
@@ -84,10 +108,25 @@ function App() {
   const [mascotaUrl, setMascotaUrl] = useState('');
   const [mascotaName, setMascotaName] = useState('Mascota');
   const [companyName, setCompanyName] = useState('');
+  
+  const navItems = useMemo(() => [
+    { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
+    { id: 'personnel', label: 'Personal', icon: Users },
+    { id: 'expenses', label: 'Gastos', icon: DollarSign },
+    { id: 'tasks', label: 'Tareas', icon: CheckSquare },
+    { id: 'promissory', label: 'Entrega Pagarés', icon: FileSignature },
+    { id: 'fallos', label: 'Fallos', icon: FileWarning },
+    { id: 'mascota', label: `Mi ${mascotaName}`, icon: ImageIcon }, 
+  ], [mascotaName]);
   const [googleApiKey, setGoogleApiKey] = useState('');
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [appStatusColor, setAppStatusColor] = useState('#10B981'); 
   const [mobileNavSections, setMobileNavSections] = useState<string[]>(['dashboard', 'personnel', 'expenses', 'tasks', 'fallos']);
+  const [birthdayPrompt, setBirthdayPrompt] = useState<string>('');
+  const [loadAllExpenses, setLoadAllExpenses] = useState(false);
+  const [loadAllFallos, setLoadAllFallos] = useState(false);
+  const [isSyncingExpenses, setIsSyncingExpenses] = useState(false);
+  const [isSyncingFallos, setIsSyncingFallos] = useState(false);
   
   // Temp states for modal
   const [tempMascotaUrl, setTempMascotaUrl] = useState('');
@@ -97,6 +136,7 @@ function App() {
   const [tempAppVersion, setTempAppVersion] = useState('');
   const [tempAppStatusColor, setTempAppStatusColor] = useState('');
   const [tempMobileNavSections, setTempMobileNavSections] = useState<string[]>([]);
+  const [tempBirthdayPrompt, setTempBirthdayPrompt] = useState('');
   
   // API Key Testing State
   const [testingKey, setTestingKey] = useState(false);
@@ -338,6 +378,9 @@ function App() {
       if (settings.mobileNavSections) {
         setMobileNavSections(settings.mobileNavSections);
       }
+      if (settings.birthdayPrompt) {
+        setBirthdayPrompt(settings.birthdayPrompt);
+      }
     }, (err) => handleError(err, 'GET', 'settings/global_config')));
 
     // Employees
@@ -355,27 +398,51 @@ function App() {
       setHasLoadedTasks(true);
     }, (err) => handleError(err, 'LIST', 'tasks')));
 
-    // Background loading for other sections to have them "ready" when navigating
-    // but without blocking the initial dashboard load
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [currentUser?.id]);
+
+  // Background loading for Expenses and Fallos (with limit or full)
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const unsubscribers: (() => void)[] = [];
+    const handleError = (error: any, op: string, path: string) => {
+      handleFirestoreError(error, op, path);
+    };
+
+    // If we are loading ALL, we don't want the 1.5s delay if we're already in the tab
+    // but for the initial background load, a small delay is good for dashboard performance
+    const delay = (loadAllExpenses || loadAllFallos) ? 0 : 1500;
+
     const backgroundTimeout = setTimeout(() => {
-      // All Expenses (Background)
+      // All Expenses
       unsubscribers.push(subscribeToAllExpenses((data) => {
         setExpenses(data);
         setHasLoadedExpenses(true);
-      }, (err) => handleError(err, 'LIST', 'expenses')));
+        setIsSyncingExpenses(false);
+      }, (err) => {
+        handleError(err, 'LIST', 'expenses');
+        setIsSyncingExpenses(false);
+      }, loadAllExpenses ? 0 : 300));
       
-      // All Fallos (Background)
+      // All Fallos
       unsubscribers.push(subscribeToAllFallos((data) => {
         setFallos(data);
         setHasLoadedFallos(true);
-      }, (err) => handleError(err, 'LIST', 'fallos')));
-    }, 1500); // 1.5s delay to let dashboard load first
-    
+        setIsSyncingFallos(false);
+      }, (err) => {
+        handleError(err, 'LIST', 'fallos');
+        setIsSyncingFallos(false);
+      }, loadAllFallos ? 0 : 300));
+    }, delay);
+
     return () => {
       unsubscribers.forEach(unsub => unsub());
       clearTimeout(backgroundTimeout);
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, loadAllExpenses, loadAllFallos]);
 
   // Tab-specific data subscriptions
   useEffect(() => {
@@ -394,19 +461,9 @@ function App() {
         setDashboardExpenses(data);
         setHasLoadedDashboard(true);
       }, (err) => handleError(err, 'LIST', 'expenses')));
-    } else if (activeTab === 'expenses' && !hasLoadedExpenses) {
-      // If user navigates to expenses before background load finishes
-      unsubscribers.push(subscribeToAllExpenses((data) => {
-        setExpenses(data);
-        setHasLoadedExpenses(true);
-      }, (err) => handleError(err, 'LIST', 'expenses')));
-    } else if (activeTab === 'fallos' && !hasLoadedFallos) {
-      // If user navigates to fallos before background load finishes
-      unsubscribers.push(subscribeToAllFallos((data) => {
-        setFallos(data);
-        setHasLoadedFallos(true);
-      }, (err) => handleError(err, 'LIST', 'fallos')));
     }
+    // Note: All Expenses and All Fallos are now handled by the dedicated background useEffect
+    // which also handles the "Load All" toggle.
 
     return () => {
       unsubscribers.forEach(unsub => unsub());
@@ -452,6 +509,7 @@ function App() {
     setTempAppVersion(appVersion);
     setTempAppStatusColor(appStatusColor);
     setTempMobileNavSections([...mobileNavSections]);
+    setTempBirthdayPrompt(birthdayPrompt);
     setKeyStatus('idle');
     setIsSettingsOpen(true);
     setUserMenuOpen(false);
@@ -521,7 +579,8 @@ function App() {
         googleApiKey: finalApiKey,
         appVersion: finalVersion,
         appStatusColor: finalColor,
-        mobileNavSections: tempMobileNavSections
+        mobileNavSections: tempMobileNavSections,
+        birthdayPrompt: tempBirthdayPrompt
       });
 
       setMascotaUrl(tempMascotaUrl);
@@ -531,6 +590,7 @@ function App() {
       setAppVersion(finalVersion);
       setAppStatusColor(finalColor);
       setMobileNavSections(tempMobileNavSections);
+      setBirthdayPrompt(tempBirthdayPrompt);
       
       setIsSettingsOpen(false);
     } catch (e) {
@@ -550,16 +610,6 @@ function App() {
     />;
   }
 
-  const navItems = [
-    { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard },
-    { id: 'personnel', label: 'Personal', icon: Users },
-    { id: 'expenses', label: 'Gastos', icon: DollarSign },
-    { id: 'tasks', label: 'Tareas', icon: CheckSquare },
-    { id: 'promissory', label: 'Entrega Pagarés', icon: FileSignature },
-    { id: 'fallos', label: 'Fallos', icon: FileWarning },
-    { id: 'mascota', label: `Mi ${mascotaName}`, icon: ImageIcon }, 
-  ];
-
   const renderContent = () => {
     // Check if data for the current tab is ready
     const isDashboardReady = hasLoadedEmployees && hasLoadedTasks && hasLoadedDashboard;
@@ -571,9 +621,9 @@ function App() {
     let isTabReady = true;
     if (activeTab === 'dashboard') isTabReady = isDashboardReady;
     else if (activeTab === 'personnel') isTabReady = isPersonnelReady;
-    else if (activeTab === 'expenses') isTabReady = isExpensesReady;
     else if (activeTab === 'tasks') isTabReady = isTasksReady;
-    else if (activeTab === 'fallos') isTabReady = isFallosReady;
+    // Expenses and Fallos handle their own loading state internally via props
+    // so we don't block the whole app while they sync heavy image data
 
     if (loading || !isTabReady) {
       return (
@@ -597,14 +647,14 @@ function App() {
     }
 
     switch (activeTab) {
-      case 'dashboard': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
+      case 'dashboard': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} />;
       case 'personnel': return <Personnel employees={employees} plazas={plazas} isLoading={!hasLoadedEmployees} />;
-      case 'expenses': return <Expenses expenses={expenses} isLoading={!hasLoadedExpenses} />;
+      case 'expenses': return <Expenses expenses={expenses} isLoading={!hasLoadedExpenses} loadAll={loadAllExpenses} isSyncing={isSyncingExpenses} onLoadAll={() => { setLoadAllExpenses(true); setIsSyncingExpenses(true); }} />;
       case 'tasks': return <Tasks tasks={tasks} employees={employees} isLoading={!hasLoadedTasks} />;
       case 'promissory': return <PromissoryNotes companyName={companyName} />;
-      case 'fallos': return <Fallos employees={employees} fallos={fallos} isLoading={!hasLoadedFallos} />;
+      case 'fallos': return <Fallos employees={employees} fallos={fallos} isLoading={!hasLoadedFallos} loadAll={loadAllFallos} isSyncing={isSyncingFallos} onLoadAll={() => { setLoadAllFallos(true); setIsSyncingFallos(true); }} />;
       case 'mascota': return <Mascota mascotaUrl={mascotaUrl} mascotaName={mascotaName} onOpenSettings={handleOpenSettings} />;
-      default: return <Dashboard currentUser={currentUser} employees={employees} expenses={expenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
+      default: return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} />;
     }
   };
 
@@ -919,6 +969,44 @@ function App() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="border-t border-gray-100 my-4 pt-4"></div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+                  <Sparkles className="w-4 h-4 mr-2 text-indigo-600" /> Prompt de Tarjetas de Cumpleaños
+                </label>
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Parámetros disponibles:</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    <code className="text-[10px] text-indigo-600">{"${person.firstName}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.lastName}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.position}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.plaza}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.groupName}"}</code>
+                  </div>
+                </div>
+                <textarea 
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all min-h-[120px]"
+                  placeholder={`Ejemplo:\nGenera una tarjeta Pixar 3D para \${person.firstName} de la plaza \${person.plaza}...`}
+                  value={tempBirthdayPrompt}
+                  onChange={(e) => setTempBirthdayPrompt(e.target.value)}
+                />
+                <button 
+                  type="button"
+                  onClick={() => setTempBirthdayPrompt(`Genera una tarjeta de felicitación de cumpleaños estilo Render 3D Pixar de ALTA CALIDAD.
+
+ELEMENTOS:
+1. TEXTO: En la parte superior, grande, 3D y brillante: "Feliz Cumpleaños \${person.firstName} \${person.lastName}". El texto debe ser el protagonista.
+2. PERSONAJE: La mascota debe estar feliz, celebrando con brazos abiertos, gorro de fiesta.
+3. AMBIENTE: Fondo festivo con desenfoque (bokeh), confeti cayendo, globos de colores vivos (Predominantemente AZULES, dorados y blancos). Iluminación de estudio cálida y mágica.
+
+Composición centrada, estilo profesional y alegre. Evita el color rosa.`)}
+                  className="mt-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" /> Cargar prompt por defecto como ejemplo
+                </button>
               </div>
 
               <div className="border-t border-gray-100 my-4 pt-4"></div>

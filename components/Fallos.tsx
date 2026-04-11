@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Upload, Trash2, X, FileWarning, User, Users, Eye, ChevronDown, ChevronRight, Calendar, Download, Share2, CheckCircle, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Search, Upload, Trash2, X, FileWarning, User, Users, Eye, ChevronDown, ChevronRight, Calendar, Download, Share2, CheckCircle, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Employee, Fallo } from '../types';
 import { addFallo, deleteFallo } from '../services/dbService';
 import JSZip from 'jszip';
@@ -9,11 +10,14 @@ interface FallosProps {
   employees: Employee[];
   fallos: Fallo[];
   isLoading?: boolean;
+  loadAll?: boolean;
+  isSyncing?: boolean;
+  onLoadAll?: () => void;
 }
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) => {
+export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, loadAll, isSyncing, onLoadAll }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
@@ -364,6 +368,64 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading }) 
           </button>
         </div>
       </div>
+
+      <div className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex items-center gap-3">
+        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+        <div className="flex-1">
+          <p className="text-xs text-amber-800">
+            {loadAll 
+              ? "Se están mostrando todos los fallos registrados." 
+              : "Para mantener la velocidad de la aplicación, solo se muestran los últimos 300 fallos."}
+          </p>
+          {!loadAll && onLoadAll && (
+            <button 
+              onClick={onLoadAll}
+              disabled={isSyncing}
+              className="mt-1 flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-lg text-[10px] font-bold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Cargando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3 h-3" />
+                  Cargar Todo
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Syncing Progress Bar */}
+      <AnimatePresence>
+        {isSyncing && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex flex-col gap-3 shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-indigo-700 font-bold text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Sincronizando historial completo...
+              </div>
+              <span className="text-[10px] text-indigo-500 font-medium">Esto puede tardar unos segundos</span>
+            </div>
+            <div className="w-full bg-indigo-100 rounded-full h-1.5 overflow-hidden">
+              <motion.div 
+                className="bg-indigo-600 h-full"
+                initial={{ width: "0%" }}
+                animate={{ width: "100%" }}
+                transition={{ duration: 15, ease: "linear" }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Search Bar & Filters */}
       <div className="flex flex-col md:flex-row gap-4">
