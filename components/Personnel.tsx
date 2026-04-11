@@ -9,6 +9,7 @@ interface PersonnelProps {
   employees: Employee[];
   plazas: Plaza[];
   refreshData: () => void;
+  isLoading?: boolean;
 }
 
 const CATEGORIES: PersonnelCategory[] = ['Oficina', 'Ejecutivos', 'Supervisoras', 'Promotoras'];
@@ -31,7 +32,7 @@ const INITIAL_FORM_STATE = {
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, refreshData }) => {
+export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, refreshData, isLoading }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPlazaModalOpen, setIsPlazaModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -596,7 +597,12 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, refresh
         </div>
       </div>
 
-      {filteredEmployees.length === 0 ? (
+      {isLoading ? (
+        <div className="py-20 text-center bg-white rounded-xl border border-gray-100 shadow-sm">
+          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-500 font-medium">Cargando personal...</p>
+        </div>
+      ) : filteredEmployees.length === 0 ? (
         <div className="py-12 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
           <User className="w-12 h-12 mx-auto mb-3 opacity-20" />
           <p>No se encontraron resultados{(searchTerm || selectedPlazaFilter || selectedSupervisorFilter) ? ' con los filtros actuales' : ''}.</p>

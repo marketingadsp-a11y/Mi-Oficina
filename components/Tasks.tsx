@@ -7,6 +7,7 @@ interface TasksProps {
   tasks: Task[];
   employees: Employee[];
   refreshData: () => void;
+  isLoading?: boolean;
 }
 
 const INITIAL_FORM_STATE = {
@@ -18,7 +19,7 @@ const INITIAL_FORM_STATE = {
   assignedTo: ''
 };
 
-export const Tasks: React.FC<TasksProps> = ({ tasks, employees, refreshData }) => {
+export const Tasks: React.FC<TasksProps> = ({ tasks, employees, refreshData, isLoading }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -145,7 +146,12 @@ export const Tasks: React.FC<TasksProps> = ({ tasks, employees, refreshData }) =
         </div>
         
         <div className="space-y-3 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-          {tasksInColumn.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-10">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mb-2"></div>
+              <span className="text-xs text-gray-400">Cargando...</span>
+            </div>
+          ) : tasksInColumn.length === 0 ? (
             <div className="text-center py-10 text-gray-400 text-sm italic">
               No hay tareas
             </div>

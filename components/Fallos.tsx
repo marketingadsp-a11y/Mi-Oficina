@@ -9,11 +9,12 @@ interface FallosProps {
   employees: Employee[];
   fallos: Fallo[];
   refreshData: () => void;
+  isLoading?: boolean;
 }
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const Fallos: React.FC<FallosProps> = ({ employees, fallos, refreshData }) => {
+export const Fallos: React.FC<FallosProps> = ({ employees, fallos, refreshData, isLoading }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
@@ -405,7 +406,12 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, refreshData }
 
       {/* ORGANIZED LIST VIEW */}
       <div className="space-y-4">
-        {sortedDates.length === 0 ? (
+        {isLoading ? (
+          <div className="py-20 text-center">
+            <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
+            <p className="text-gray-500 font-medium">Cargando documentos...</p>
+          </div>
+        ) : sortedDates.length === 0 ? (
           <div className="py-12 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
             <FileWarning className="w-12 h-12 mx-auto mb-3 opacity-20" />
             <p>No hay documentos registrados.</p>

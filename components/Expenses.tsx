@@ -9,9 +9,10 @@ import autoTable from 'jspdf-autotable';
 interface ExpensesProps {
   expenses: Expense[];
   refreshData: () => void;
+  isLoading?: boolean;
 }
 
-export const Expenses: React.FC<ExpensesProps> = ({ expenses, refreshData }) => {
+export const Expenses: React.FC<ExpensesProps> = ({ expenses, refreshData, isLoading }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewTicketImage, setViewTicketImage] = useState<string | null>(null); // State for viewing image
   
@@ -321,62 +322,72 @@ export const Expenses: React.FC<ExpensesProps> = ({ expenses, refreshData }) => 
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredExpenses.map(expense => (
-              <tr key={expense.id} className="hover:bg-gray-50/50 transition-colors group">
-                {/* Ticket Column */}
-                <td className="p-4 text-center">
-                   {expense.ticketImage ? (
-                      <button 
-                        onClick={() => setViewTicketImage(expense.ticketImage || null)}
-                        className="bg-blue-50 text-blue-600 p-1.5 rounded-lg hover:bg-blue-100 transition-colors"
-                        title="Ver Ticket"
-                      >
-                         <Eye className="w-4 h-4" />
-                      </button>
-                   ) : (
-                     <span className="text-gray-300 text-xs">-</span>
-                   )}
-                </td>
-                <td className="p-4 text-gray-800 font-medium">
-                  {expense.description}
-                  {/* Mobile only view details */}
-                  <div className="sm:hidden text-xs text-gray-400 mt-1 flex gap-2">
-                    <span>{expense.category}</span>
-                    <span>•</span>
-                    <span>{expense.date}</span>
-                  </div>
-                </td>
-                <td className="p-4 hidden sm:table-cell">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    <Tag className="w-3 h-3 mr-1" /> {expense.category}
-                  </span>
-                </td>
-                <td className="p-4 text-gray-500 hidden md:table-cell text-sm">
-                   <span className="font-mono bg-gray-50 px-2 py-1 rounded border border-gray-200">
-                     {expense.date}
-                   </span>
-                </td>
-                <td className="p-4 text-right font-bold text-gray-800">
-                  ${expense.amount.toFixed(2)}
-                </td>
-                <td className="p-4 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <button onClick={() => handleEdit(expense)} className="text-gray-300 hover:text-blue-500 transition-colors">
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleDelete(expense.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+            {isLoading ? (
+              <tr>
+                <td colSpan={6} className="p-20 text-center">
+                  <div className="flex flex-col items-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mb-4"></div>
+                    <p className="text-gray-500 font-medium">Cargando gastos...</p>
                   </div>
                 </td>
               </tr>
-            ))}
-            {filteredExpenses.length === 0 && (
+            ) : filteredExpenses.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-12 text-center text-gray-400">
                   No hay gastos registrados en la semana del <span className="font-semibold text-gray-500">{weekRange.label}</span>.
                 </td>
               </tr>
+            ) : (
+              filteredExpenses.map(expense => (
+                <tr key={expense.id} className="hover:bg-gray-50/50 transition-colors group">
+                  {/* Ticket Column */}
+                  <td className="p-4 text-center">
+                     {expense.ticketImage ? (
+                        <button 
+                          onClick={() => setViewTicketImage(expense.ticketImage || null)}
+                          className="bg-blue-50 text-blue-600 p-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+                          title="Ver Ticket"
+                        >
+                           <Eye className="w-4 h-4" />
+                        </button>
+                     ) : (
+                       <span className="text-gray-300 text-xs">-</span>
+                     )}
+                  </td>
+                  <td className="p-4 text-gray-800 font-medium">
+                    {expense.description}
+                    {/* Mobile only view details */}
+                    <div className="sm:hidden text-xs text-gray-400 mt-1 flex gap-2">
+                      <span>{expense.category}</span>
+                      <span>•</span>
+                      <span>{expense.date}</span>
+                    </div>
+                  </td>
+                  <td className="p-4 hidden sm:table-cell">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <Tag className="w-3 h-3 mr-1" /> {expense.category}
+                    </span>
+                  </td>
+                  <td className="p-4 text-gray-500 hidden md:table-cell text-sm">
+                     <span className="font-mono bg-gray-50 px-2 py-1 rounded border border-gray-200">
+                       {expense.date}
+                     </span>
+                  </td>
+                  <td className="p-4 text-right font-bold text-gray-800">
+                    ${expense.amount.toFixed(2)}
+                  </td>
+                  <td className="p-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => handleEdit(expense)} className="text-gray-300 hover:text-blue-500 transition-colors">
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDelete(expense.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>

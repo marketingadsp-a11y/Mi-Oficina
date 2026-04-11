@@ -314,17 +314,16 @@ function App() {
     }
   };
 
-  // Real-time data subscriptions based on active tab
+  // Global data subscriptions (once per login)
   useEffect(() => {
     if (!currentUser) return;
 
     const unsubscribers: (() => void)[] = [];
-
     const handleError = (error: any, op: string, path: string) => {
       handleFirestoreError(error, op, path);
     };
 
-    // Always subscribe to settings for real-time updates of company name, etc.
+    // Settings
     unsubscribers.push(subscribeToAppSettings((settings) => {
       setCompanyName(settings.companyName);
       setMascotaName(settings.mascotaName);
@@ -334,32 +333,46 @@ function App() {
       setAppStatusColor(settings.appStatusColor);
     }, (err) => handleError(err, 'GET', 'settings/global_config')));
 
+    // Employees
+    unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
+    
+    // Plazas
+    unsubscribers.push(subscribeToPlazas(setPlazas, (err) => handleError(err, 'LIST', 'plazas')));
+    
+    // All Expenses
+    unsubscribers.push(subscribeToAllExpenses((data) => {
+      setExpenses(data);
+      setHasLoadedExpenses(true);
+    }, (err) => handleError(err, 'LIST', 'expenses')));
+    
+    // Tasks
+    unsubscribers.push(subscribeToTasks(setTasks, (err) => handleError(err, 'LIST', 'tasks')));
+    
+    // All Fallos
+    unsubscribers.push(subscribeToAllFallos((data) => {
+      setFallos(data);
+      setHasLoadedFallos(true);
+    }, (err) => handleError(err, 'LIST', 'fallos')));
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [currentUser?.id]);
+
+  // Tab-specific data subscriptions
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const unsubscribers: (() => void)[] = [];
+    const handleError = (error: any, op: string, path: string) => {
+      handleFirestoreError(error, op, path);
+    };
+
     if (activeTab === 'dashboard') {
-      unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
-      unsubscribers.push(subscribeToTasks(setTasks, (err) => handleError(err, 'LIST', 'tasks')));
-      
       const now = new Date();
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
       unsubscribers.push(subscribeToDashboardExpenses(firstDay, lastDay, setDashboardExpenses, (err) => handleError(err, 'LIST', 'expenses')));
-    } else if (activeTab === 'personnel') {
-      unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
-      unsubscribers.push(subscribeToPlazas(setPlazas, (err) => handleError(err, 'LIST', 'plazas')));
-    } else if (activeTab === 'expenses') {
-      // For the main list, we listen to all records
-      unsubscribers.push(subscribeToAllExpenses((data) => {
-        setExpenses(data);
-        setHasLoadedExpenses(true);
-      }, (err) => handleError(err, 'LIST', 'expenses')));
-    } else if (activeTab === 'tasks') {
-      unsubscribers.push(subscribeToTasks(setTasks, (err) => handleError(err, 'LIST', 'tasks')));
-      unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
-    } else if (activeTab === 'fallos') {
-      unsubscribers.push(subscribeToAllFallos((data) => {
-        setFallos(data);
-        setHasLoadedFallos(true);
-      }, (err) => handleError(err, 'LIST', 'fallos')));
-      unsubscribers.push(subscribeToEmployees(setEmployees, (err) => handleError(err, 'LIST', 'employees')));
     }
 
     return () => {
@@ -538,11 +551,11 @@ function App() {
 
     switch (activeTab) {
       case 'dashboard': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
-      case 'personnel': return <Personnel employees={employees} plazas={plazas} refreshData={refreshData} />;
-      case 'expenses': return <Expenses expenses={expenses} refreshData={refreshData} />;
-      case 'tasks': return <Tasks tasks={tasks} employees={employees} refreshData={refreshData} />;
+      case 'personnel': return <Personnel employees={employees} plazas={plazas} refreshData={refreshData} isLoading={!hasLoadedEmployees} />;
+      case 'expenses': return <Expenses expenses={expenses} refreshData={refreshData} isLoading={!hasLoadedExpenses} />;
+      case 'tasks': return <Tasks tasks={tasks} employees={employees} refreshData={refreshData} isLoading={!hasLoadedTasks} />;
       case 'promissory': return <PromissoryNotes companyName={companyName} />;
-      case 'fallos': return <Fallos employees={employees} fallos={fallos} refreshData={refreshData} />;
+      case 'fallos': return <Fallos employees={employees} fallos={fallos} refreshData={refreshData} isLoading={!hasLoadedFallos} />;
       case 'mascota': return <Mascota mascotaUrl={mascotaUrl} mascotaName={mascotaName} onOpenSettings={handleOpenSettings} />;
       default: return <Dashboard currentUser={currentUser} employees={employees} expenses={expenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} />;
     }
