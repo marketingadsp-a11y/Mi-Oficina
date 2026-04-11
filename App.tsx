@@ -564,6 +564,7 @@ function App() {
             </div>
           )}
           <p className="text-[10px] text-gray-400 mt-2">Sincronizando con la base de datos en tiempo real</p>
+          <p className="text-[10px] text-gray-400 mt-4 opacity-50 italic">Si no carga, es culpa de Vick</p>
         </div>
       );
     }
