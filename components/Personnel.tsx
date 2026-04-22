@@ -1,9 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, Phone, Mail, User, MapPin, Filter, Layers, Pencil, Lock, Search, X, Building, Link as LinkIcon, FileSpreadsheet, UploadCloud, AlertTriangle, Download, CheckCircle, RefreshCcw, Users, Clipboard, LayoutGrid, Table, Cake, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Phone, Mail, User, MapPin, Filter, Layers, Pencil, Lock, Search, X, Building, Link as LinkIcon, FileSpreadsheet, UploadCloud, AlertTriangle, Download, CheckCircle, RefreshCcw, Users, Clipboard, LayoutGrid, Table, Cake, Loader2, FileText } from 'lucide-react';
 import { Employee, PersonnelCategory, Plaza } from '../types';
 import { addEmployee, deleteEmployee, updateEmployee, addPlaza, deletePlaza, deleteAllEmployees, saveEmployeesBatch } from '../services/dbService';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface PersonnelProps {
   employees: Employee[];
@@ -430,6 +432,74 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
     }
   };
 
+  // --- Export Logic ---
+  const handleExportExcel = () => {
+    const dataToExport = filteredEmployees.map(emp => ({
+      'Categoría': emp.category,
+      'Nombre': emp.firstName || '',
+      'Apellido': emp.lastName || '',
+      'Puesto': emp.position || '',
+      'Plaza': emp.plaza || '',
+      'Ejecutivo': getLinkedName(emp.linkedExecutiveId) || 'N/A',
+      'Supervisora': emp.category === 'Promotoras' 
+        ? getLinkedName(emp.linkedSupervisorId) || 'N/A' 
+        : (emp.category === 'Supervisoras' ? emp.supervisionName || 'N/A' : 'N/A'),
+      'Grupo': emp.groupName || 'N/A',
+      'Correo': emp.email || '',
+      'Teléfono': emp.phone || '',
+      'Fecha Nacimiento': emp.birthDate || '',
+      'Fecha Ingreso': emp.hireDate || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Personal");
+    XLSX.writeFile(wb, `Reporte_Personal_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
+    
+    // Header Banner
+    doc.setFillColor(79, 70, 229); // Indigo 600
+    doc.rect(0, 0, 297, 30, 'F'); 
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text('Directorio de Personal - Reporte', 14, 20);
+
+    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-ES')}`, 14, 40);
+    doc.text(`Categoría filtrada: ${activeCategory}`, 14, 46);
+    doc.text(`Resultados encontrados: ${filteredEmployees.length}`, 14, 52);
+    
+    const tableColumn = ["Nombre / Apellido", "Categoría / Puesto", "Plaza", "Vinculación / Grupo", "Ingreso"];
+    const tableRows = filteredEmployees.map(emp => [
+      `${emp.firstName} ${emp.lastName}`,
+      `${emp.category}${emp.position ? ' - ' + emp.position : ''}`,
+      emp.plaza || '-',
+      `${emp.category === 'Promotoras' 
+        ? 'Sup: ' + (getLinkedName(emp.linkedSupervisorId) || 'N/A') + (emp.groupName ? ' | G: ' + emp.groupName : '')
+        : (emp.category === 'Supervisoras' ? 'Ejecutivo: ' + (getLinkedName(emp.linkedExecutiveId) || 'N/A') : '-')}`,
+      emp.hireDate || '-'
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 58,
+      theme: 'striped',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [243, 244, 246] }
+    });
+
+    doc.save(`Reporte_Personal_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   const getCategoryColor = (cat: string) => {
     switch(cat) {
       case 'Oficina': return 'bg-purple-100 text-purple-700 border-purple-200';
@@ -459,6 +529,22 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
         </div>
         
         <div className="flex gap-2 flex-wrap">
+           <div className="flex bg-white rounded-lg border border-gray-200 p-0.5 shadow-sm">
+             <button 
+              onClick={handleExportExcel}
+              className="text-green-600 hover:bg-green-50 p-2 rounded-l-lg flex items-center transition-colors border-r"
+              title="Exportar a Excel"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={handleExportPDF}
+              className="text-red-500 hover:bg-red-50 p-2 rounded-r-lg flex items-center transition-colors"
+              title="Exportar a PDF"
+            >
+              <FileText className="w-5 h-5" />
+            </button>
+          </div>
            <button 
             onClick={() => setIsImportModalOpen(true)}
             className="bg-green-600 hover:bg-green-700 text-white border border-transparent px-4 py-2 rounded-lg flex items-center transition-colors shadow-sm whitespace-nowrap"
