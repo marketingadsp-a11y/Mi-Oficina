@@ -28,6 +28,7 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
   const [downloading, setDownloading] = useState(false);
   const [groupSearch, setGroupSearch] = useState('');
   const [showGroupDropdown, setShowGroupDropdown] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   
   // Expanded states for dates and groups
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
@@ -186,9 +187,48 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsCompressing(true);
     const reader = new FileReader();
     reader.onloadend = () => {
-      setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+      const img = new Image();
+      img.src = reader.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const MAX_WIDTH = 1024; // Standardize to 1024px max width for super clear text but 95%+ size savings
+        
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > MAX_WIDTH) {
+          height = (height * MAX_WIDTH) / width;
+          width = MAX_WIDTH;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        if (ctx) {
+          // Set solid white background to avoid black patches from transparent PNGs
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Output high-efficiency lightweight JPEG 0.7 which yields ultra fast uploads & loads
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
+          setFormData(prev => ({ ...prev, imageUrl: compressedBase64 }));
+        } else {
+          setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+        }
+        setIsCompressing(false);
+      };
+      img.onerror = () => {
+        setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+        setIsCompressing(false);
+      };
+    };
+    reader.onerror = () => {
+      setIsCompressing(false);
     };
     reader.readAsDataURL(file);
   };
@@ -808,25 +848,34 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
               </div>
 
               {/* Image Upload */}
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors relative">
-                {formData.imageUrl ? (
-                  <div className="relative h-40 mx-auto">
+              <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center bg-gray-50/20 hover:bg-gray-50 transition-colors relative min-h-48 flex items-center justify-center">
+                {isCompressing ? (
+                  <div className="flex flex-col items-center justify-center space-y-3 py-6">
+                    <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-gray-700">Procesando y optimizando imagen...</p>
+                      <p className="text-xs text-gray-400">Reduciendo dimensiones para carga súper veloz</p>
+                    </div>
+                  </div>
+                ) : formData.imageUrl ? (
+                  <div className="relative h-44 w-full">
                     <img src={formData.imageUrl} alt="Preview" className="h-full w-full object-contain rounded-lg" />
                     <button 
                       type="button"
                       onClick={() => {
                         setFormData({...formData, imageUrl: ''});
                       }}
-                      className="absolute top-2 right-2 bg-white rounded-full p-1 shadow-md text-red-500"
+                      className="absolute top-2 right-2 bg-white/90 backdrop-blur hover:bg-white hover:text-red-600 rounded-full p-1.5 shadow-md text-gray-500 transition-all active:scale-90"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
-                  <label className="cursor-pointer block p-4">
-                    <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                    <span className="text-sm text-gray-600 font-medium">Click para tomar foto o subir archivo</span>
-                    <p className="text-[10px] text-orange-500 mt-1 font-bold italic">Favor de tomar la foto en HORIZONTAL</p>
+                  <label className="cursor-pointer block p-4 w-full h-full">
+                    <Upload className="w-10 h-10 text-orange-400 mx-auto mb-3" />
+                    <span className="text-sm text-gray-700 font-bold">Tomar foto o seleccionar archivo</span>
+                    <p className="text-xs text-gray-400 mt-1">Soporta cámara directa o galería</p>
+                    <p className="text-[10px] text-orange-600 mt-2 font-black italic bg-orange-50 py-1 px-2.5 rounded-full inline-block">Favor de tomar la foto en HORIZONTAL</p>
                     <input 
                       ref={fileInputRef}
                       type="file" 
