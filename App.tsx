@@ -681,7 +681,7 @@ function App() {
           </button>
         </div>
         
-        <nav className="p-4 space-y-1">
+        <nav className="p-4 space-y-2 relative">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -692,13 +692,23 @@ function App() {
                   setActiveTab(item.id);
                   setSidebarOpen(false);
                 }}
-                className={`flex items-center w-full px-4 py-3 rounded-xl transition-all duration-200 group ${
+                className={`relative flex items-center w-full px-4 py-3 rounded-xl transition-all duration-300 group z-10 ${
                   isActive 
-                    ? 'bg-indigo-50 text-indigo-700 font-semibold shadow-sm' 
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'text-indigo-700 font-bold shadow-[0_4px_20px_rgba(99,102,241,0.1)]' 
+                    : 'text-gray-600 hover:bg-gray-50/50 hover:text-gray-900'
                 }`}
               >
-                <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebarActivePill"
+                    className="absolute inset-0 -z-10 bg-gradient-to-r from-indigo-500/10 via-indigo-500/5 to-transparent rounded-xl border-l-[3px] border-indigo-600"
+                    style={{
+                      boxShadow: 'inset 1px 1px 2px rgba(255,255,255,0.8), 0 4px 12px rgba(99,102,241,0.04)',
+                    }}
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  />
+                )}
+                <Icon className={`w-5 h-5 mr-3 transition-colors duration-300 ${isActive ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
                 {item.label}
               </button>
             );
@@ -798,15 +808,21 @@ function App() {
         <motion.nav 
           animate={{ 
             boxShadow: [
-              "0 8px 32px rgba(79, 70, 229, 0.15)", 
-              "0 8px 48px rgba(79, 70, 229, 0.4)", 
-              "0 8px 32px rgba(79, 70, 229, 0.15)"
+              "0 15px 35px -5px rgba(79, 70, 229, 0.22), inset 0 1px 2px rgba(255,255,255,0.5)", 
+              "0 20px 45px -5px rgba(79, 70, 229, 0.38), inset 0 1px 2px rgba(255,255,255,0.5)", 
+              "0 15px 35px -5px rgba(79, 70, 229, 0.22), inset 0 1px 2px rgba(255,255,255,0.5)"
             ] 
           }}
-          transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-          className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-white/90 backdrop-blur-xl border-2 border-indigo-500/50 rounded-2xl z-40 px-2 py-2"
+          transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+          className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-white/20 backdrop-blur-2xl border border-white/50 border-t-white/70 border-b-white/20 rounded-2xl z-40 px-2 py-2"
+          style={{
+            background: "linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 100%)"
+          }}
         >
-          <div className="flex items-center justify-around">
+          {/* Subtle glossy reflection effect inside the glass bar */}
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/10 to-transparent pointer-events-none -z-10 bg-opacity-20" />
+          
+          <div className="flex items-center justify-around relative">
             {navItems
               .filter(item => mobileNavSections.includes(item.id))
               .map((item) => {
@@ -816,21 +832,31 @@ function App() {
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
-                    className={`relative flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all duration-300 ${
+                    className={`relative flex flex-col items-center justify-center py-2 px-3.5 rounded-xl transition-all duration-300 z-10 ${
                       isActive 
-                        ? 'text-indigo-600 bg-indigo-50/50' 
-                        : 'text-gray-400 hover:text-gray-600'
+                        ? 'text-indigo-600' 
+                        : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    <Icon className={`w-6 h-6 ${isActive ? 'scale-110' : 'scale-100'} transition-transform`} />
-                    <span className={`text-[10px] font-bold mt-1 ${isActive ? 'opacity-100' : 'opacity-0 h-0'} transition-all`}>
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTabPill"
+                        className="absolute inset-0 -z-10 bg-gradient-to-tr from-indigo-500/15 via-blue-500/5 to-transparent rounded-xl border border-white/40"
+                        style={{
+                          boxShadow: "inset 0 1px 2px rgba(255,255,255,0.4), 0 8px 16px -2px rgba(99,102,241,0.2)"
+                        }}
+                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                      />
+                    )}
+                    <Icon className={`w-6 h-6 ${isActive ? 'scale-110 text-indigo-600 drop-shadow-[0_2px_8px_rgba(99,102,241,0.3)]' : 'scale-100 text-gray-500'} transition-transform duration-300`} />
+                    <span className={`text-[9.5px] font-bold mt-1 tracking-tight ${isActive ? 'opacity-100 max-h-4' : 'opacity-0 max-h-0'} overflow-hidden transition-all duration-300`}>
                       {item.label.split(' ')[0]}
                     </span>
                     {isActive && (
                       <motion.div
-                        layoutId="activeTab"
-                        className="absolute -bottom-1 w-1 h-1 bg-indigo-600 rounded-full"
-                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                        layoutId="activeTabIndicator"
+                        className="absolute -bottom-1 w-1.5 h-1.5 bg-gradient-to-tr from-indigo-500 to-indigo-600 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]"
+                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
                       />
                     )}
                   </button>
