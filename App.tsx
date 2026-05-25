@@ -68,9 +68,7 @@ import {
 } from './services/dbService';
 import { validateApiKey } from './services/geminiService';
 import { Employee, Expense, Task, Fallo, Plaza } from './types';
-import { User } from 'firebase/auth';
-import { initAuth, googleSignIn, logoutGoogle } from './services/authService';
-import { uploadFileToDrive, listDriveFiles, downloadFileFromDrive } from './services/driveService';
+
 
 function App() {
   // Auth State - Initialize from LocalStorage to persist session
@@ -155,59 +153,8 @@ function App() {
   const [isDeletingBase64, setIsDeletingBase64] = useState(false);
   const [isBackingUpBase64, setIsBackingUpBase64] = useState(false);
   const [isImportingFallos, setIsImportingFallos] = useState(false);
-  const [isSyncingDrive, setIsSyncingDrive] = useState(false);
   const importFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Google OAuth State
-  const [googleUser, setGoogleUser] = useState<User | null>(null);
-  const [googleToken, setGoogleToken] = useState<string | null>(null);
-  const [needsGoogleAuth, setNeedsGoogleAuth] = useState(true);
-
-  // Initialize Google Auth
-  useEffect(() => {
-    const unsub = initAuth(
-      (user, token) => {
-        setGoogleUser(user);
-        setGoogleToken(token);
-        setNeedsGoogleAuth(false);
-      },
-      () => {
-        setGoogleUser(null);
-        setGoogleToken(null);
-        setNeedsGoogleAuth(true);
-      }
-    );
-    return () => unsub();
-  }, []);
-
-  const handleGoogleLogin = async () => {
-    try {
-      const result = await googleSignIn();
-      if (result) {
-        setGoogleUser(result.user);
-        setGoogleToken(result.accessToken);
-        setNeedsGoogleAuth(false);
-      }
-    } catch (err: any) {
-      console.error('Google Sign in failed:', err);
-      if (err.code === 'auth/unauthorized-domain') {
-        alert("DOMINIO NO AUTORIZADO:\n\nDebes añadir los dominios de la app en tu consola de Firebase (Authentication > Settings > Authorized Domains). Mira las instrucciones en la sección de Google Drive en Ajustes.");
-      } else {
-        alert("Error al conectar con Google. Verifica tu conexión.");
-      }
-    }
-  };
-
-  const handleGoogleLogout = async () => {
-    try {
-      await logoutGoogle();
-      setGoogleUser(null);
-      setGoogleToken(null);
-      setNeedsGoogleAuth(true);
-    } catch (err) {
-      console.error('Google logout failed:', err);
-    }
-  };
 
   // API Key Testing State
   const [testingKey, setTestingKey] = useState(false);
@@ -722,71 +669,6 @@ function App() {
     }
   };
 
-  const handleBackupToDrive = async () => {
-    if (!googleToken) {
-      alert("Por favor, conecta con Google Drive primero.");
-      return;
-    }
-
-    setIsSyncingDrive(true);
-    try {
-      const data = await getBase64Fallos();
-      if (data.length === 0) {
-        alert("No se encontraron fallos en formato Base64 para respaldar.");
-        return;
-      }
-      
-      const fileName = `respaldo_fallos_base64_${new Date().toISOString().split('T')[0]}.json`;
-      await uploadFileToDrive(fileName, data);
-      alert(`${data.length} fallos respaldados en Google Drive con éxito.`);
-    } catch (e: any) {
-      console.error("Drive upload error", e);
-      alert(`Error al respaldar en Drive: ${e.message}`);
-    } finally {
-      setIsSyncingDrive(false);
-    }
-  };
-
-  const handleImportFromDrive = async () => {
-    if (!googleToken) {
-      alert("Por favor, conecta con Google Drive primero.");
-      return;
-    }
-
-    setIsSyncingDrive(true);
-    try {
-      const { files } = await listDriveFiles();
-      if (files.length === 0) {
-        alert("No se encontraron archivos de respaldo (.json) en tu Google Drive.");
-        return;
-      }
-
-      // Simple implementation: take the latest JSON file for now, or alert if many
-      // Ideally we'd show a picker, but for now we'll take the one with "respaldo_fallos" in name
-      const backupFile = files.find((f: any) => f.name.includes('respaldo_fallos') && f.mimeType === 'application/json');
-      
-      if (!backupFile) {
-        alert("No se encontró ningún archivo de respaldo compatible en Drive.");
-        return;
-      }
-
-      if (!confirm(`¿Deseas importar los fallos del archivo "${backupFile.name}" desde tu Drive?`)) {
-        return;
-      }
-
-      const data = await downloadFileFromDrive(backupFile.id);
-      if (!Array.isArray(data)) throw new Error("Archivo de respaldo inválido");
-
-      await importFallos(data);
-      alert(`Importación desde Drive completada. Se importaron ${data.length} fallos.`);
-    } catch (e: any) {
-      console.error("Drive import error", e);
-      alert(`Error al importar de Drive: ${e.message}`);
-    } finally {
-      setIsSyncingDrive(false);
-    }
-  };
-
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
     const finalMascotaName = tempMascotaName || 'Mascota';
@@ -875,7 +757,7 @@ function App() {
       case 'gastos': return <Expenses expenses={expenses} isLoading={!hasLoadedExpenses} loadAll={loadAllExpenses} isSyncing={isSyncingExpenses} onLoadAll={() => { setLoadAllExpenses(true); setIsSyncingExpenses(true); }} />;
       case 'tareas': return <Tasks tasks={tasks} employees={employees} isLoading={!hasLoadedTasks} />;
       case 'pagares': return <PromissoryNotes companyName={companyName} />;
-      case 'fallos': return <Fallos employees={employees} fallos={fallos} isLoading={!hasLoadedFallos} loadAll={loadAllFallos} isSyncing={isSyncingFallos} onLoadAll={() => { setLoadAllFallos(true); setIsSyncingFallos(true); }} />;
+      case 'fallos': return <Fallos currentUser={currentUser} employees={employees} fallos={fallos} isLoading={!hasLoadedFallos} loadAll={loadAllFallos} isSyncing={isSyncingFallos} onLoadAll={() => { setLoadAllFallos(true); setIsSyncingFallos(true); }} />;
       case 'mascota': return <Mascota mascotaUrl={mascotaUrl} mascotaName={mascotaName} onOpenSettings={handleOpenSettings} />;
       default: return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} />;
     }
@@ -1191,95 +1073,8 @@ function App() {
 
               <div className="border-t border-gray-100 my-4 pt-4"></div>
 
-              {/* GOOGLE DRIVE INTEGRATION */}
-              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 space-y-4">
-                <label className="block text-sm font-bold text-blue-800 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Cloud className="w-4 h-4 mr-2 text-blue-600" /> Google Drive
-                  </div>
-                  {googleUser ? (
-                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <CheckCircle className="w-2.5 h-2.5" /> Conectado
-                    </span>
-                  ) : (
-                    <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Desconectado</span>
-                  )}
-                </label>
-                
-                {!googleUser ? (
-                  <div className="space-y-3">
-                    <button 
-                      onClick={handleGoogleLogin}
-                      className="w-full flex items-center justify-center gap-3 bg-white border border-blue-200 text-gray-700 px-4 py-3 rounded-xl shadow-sm hover:bg-blue-50 transition-all font-medium text-sm group"
-                    >
-                      <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                        <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z" fill="#FBBC05"/>
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-                      </svg>
-                      <span>Conectar mi Google Drive</span>
-                    </button>
-                    <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                      <ExternalLink className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                      <div className="text-[10px] text-amber-800 leading-tight space-y-2">
-                        <p><strong>¿Error de Dominio o Ventana Cerrada?</strong></p>
-                        <ul className="list-disc ml-3 space-y-1">
-                          <li>Abre la app en una <strong>pestaña nueva</strong> (icono de flecha arriba).</li>
-                          <li>Debes autorizar estos dominios en <strong>Firebase Console &gt; Auth &gt; Settings</strong>:</li>
-                        </ul>
-                        <div className="bg-white/50 p-1.5 rounded font-mono text-[9px] break-all border border-amber-200 select-all">
-                          ais-dev-gsuzayuvfumhhjblzln2u7-20846327753.us-west1.run.app<br/>
-                          ais-pre-gsuzayuvfumhhjblzln2u7-20846327753.us-west1.run.app
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-blue-50 shadow-sm">
-                      <img src={googleUser.photoURL || ''} alt="" className="w-10 h-10 rounded-full border border-blue-100" />
-                      <div className="flex-1 overflow-hidden">
-                        <p className="text-xs font-bold text-gray-800 truncate">{googleUser.displayName}</p>
-                        <p className="text-[10px] text-gray-500 truncate">{googleUser.email}</p>
-                      </div>
-                      <button 
-                        onClick={handleGoogleLogout}
-                        className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                        title="Cerrar sesión de Google"
-                      >
-                        <LogOut className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        onClick={handleBackupToDrive}
-                        disabled={isSyncingDrive}
-                        className="flex items-center justify-center gap-2 bg-blue-600 text-white px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
-                      >
-                        {isSyncingDrive ? <Loader2 className="w-3 h-3 animate-spin"/> : <Cloud className="w-3 h-3"/>}
-                        Respaldo a Drive
-                      </button>
-                      <button 
-                        onClick={handleImportFromDrive}
-                        disabled={isSyncingDrive}
-                        className="flex items-center justify-center gap-2 bg-white border border-blue-200 text-blue-700 px-3 py-2.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition-colors disabled:opacity-50 shadow-sm"
-                      >
-                        {isSyncingDrive ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>}
-                        Importar de Drive
-                      </button>
-                    </div>
-                    <p className="text-[9px] text-blue-600 italic mt-1">
-                      * Al estar conectado, los nuevos fallos se subirán automáticamente a Google Drive.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t border-gray-100 my-4 pt-4"></div>
-
               <div>
+
                 <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center">
                   <LayoutGrid className="w-4 h-4 mr-2 text-indigo-600" /> Barra de Navegación Móvil
                 </label>

@@ -27,8 +27,8 @@ import {
 } from "firebase/storage";
 import { db, storage } from "../firebase";
 import { Employee, Expense, Task, TaskStatus, AppSettings, GeneratedImage, Plaza, Fallo } from "../types";
-import { ensureFolder, uploadImageToDrive } from "./driveService";
-import { getAccessToken } from "./authService";
+import { uploadToImgBB } from "./imgbbService";
+
 
 // --- HELPERS ---
 
@@ -474,7 +474,6 @@ export const getFallos = async (): Promise<Fallo[]> => {
 export const getBase64Fallos = async (): Promise<Fallo[]> => {
   const q = query(collection(db, "fallos"));
   const snapshot = await getDocs(q);
-  // Filter client-side because Firestore doesn't support complex string pattern matching like "startsWith" efficiently for non-indexable values
   return snapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as Fallo))
     .filter(f => f.imageUrl && f.imageUrl.startsWith('data:'));
@@ -494,49 +493,38 @@ export const importFallos = async (fallos: Omit<Fallo, 'id'>[]) => {
 export const addFallo = async (fallo: Omit<Fallo, 'id'>) => {
   // Check if image is already a URL or needs processing
   let imageToProcess = fallo.imageUrl;
-  if (!imageToProcess.startsWith('http') && imageToProcess.length > 500000) {
+  
+  if (!imageToProcess.startsWith('http')) {
     imageToProcess = await compressBase64(fallo.imageUrl);
+  } else {
+    // If it's already an http link, just save it
+    return await addDoc(collection(db, "fallos"), { ...fallo });
   }
   
-  // Try Google Drive if token available
-  const driveToken = await getAccessToken();
-  let finalImageUrl = '';
-
-  if (driveToken) {
-    // Wrap entire Drive operation in a timeout to avoid hanging the app
-    const drivePromise = (async () => {
-      try {
-        const folderId = await ensureFolder("Mi Oficina - Fallos");
-        const fileName = `fallo_${Date.now()}_${(fallo.groupName || 'Sin-Grupo').replace(/\s+/g, '_')}.png`;
-        const driveFile = await uploadImageToDrive(imageToProcess, fileName, folderId);
-        return driveFile.webContentLink || driveFile.webViewLink;
-      } catch (e) {
-        console.error("Internal Drive upload failure:", e);
-        return '';
-      }
-    })();
-
-    // Max 20 seconds for Drive before falling back
-    const timeoutPromise = new Promise<string>((resolve) => setTimeout(() => resolve(''), 20000));
-    finalImageUrl = await Promise.race([drivePromise, timeoutPromise]);
-  }
-
-  // Fallback to Firebase Storage if Drive failed, was timed out, or not available
-  if (!finalImageUrl) {
+  try {
+    // Upload to imgBB
+    const imageUrl = await uploadToImgBB(imageToProcess);
+    
+    return await addDoc(collection(db, "fallos"), { 
+      ...fallo, 
+      imageUrl: imageUrl 
+    });
+  } catch (e: any) {
+    console.error("imgBB upload failure, falling back to Firebase Storage:", e);
+    
+    // Fallback to Firebase Storage as secondary
     try {
       const fileName = `fallos/fallo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      finalImageUrl = await uploadBase64ToStorage(imageToProcess, fileName);
-    } catch (e) {
-      console.error("Storage fallback failed:", e);
-      // Last resort: store small base64 if possible
-      finalImageUrl = imageToProcess; 
+      const storageUrl = await uploadBase64ToStorage(imageToProcess, fileName);
+      
+      return await addDoc(collection(db, "fallos"), { 
+        ...fallo, 
+        imageUrl: storageUrl 
+      });
+    } catch (fallbackError: any) {
+      throw new Error(`Error al subir imagen: ${e.message}. El respaldo de Firebase también falló.`);
     }
   }
-  
-  return await addDoc(collection(db, "fallos"), { 
-    ...fallo, 
-    imageUrl: finalImageUrl 
-  });
 };
 
 export const deleteFallo = async (id: string) => {

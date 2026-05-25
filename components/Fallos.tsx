@@ -7,6 +7,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
 interface FallosProps {
+  currentUser: Employee | null;
   employees: Employee[];
   fallos: Fallo[];
   isLoading?: boolean;
@@ -17,7 +18,7 @@ interface FallosProps {
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, loadAll, isSyncing, onLoadAll }) => {
+export const Fallos: React.FC<FallosProps> = ({ currentUser, employees, fallos, isLoading, loadAll, isSyncing, onLoadAll }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
@@ -26,6 +27,8 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [groupSearch, setGroupSearch] = useState('');
   const [showGroupDropdown, setShowGroupDropdown] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -34,6 +37,7 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
   const [lastUsedGroup, setLastUsedGroup] = useState<{name: string, id: string} | null>(null);
   const [autoTriggerCamera, setAutoTriggerCamera] = useState(false);
 
@@ -128,6 +132,105 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
       alert("Error al crear el archivo ZIP.");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleZipImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    setImportProgress({ current: 0, total: 0 });
+
+    try {
+      const zip = new JSZip();
+      const loadedZip = await zip.loadAsync(file);
+      
+      const imageFiles: { path: string, file: JSZip.JSZipObject }[] = [];
+      
+      // Identify all image files in the zip
+      loadedZip.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir && (
+          relativePath.toLowerCase().endsWith('.png') || 
+          relativePath.toLowerCase().endsWith('.jpg') || 
+          relativePath.toLowerCase().endsWith('.jpeg') ||
+          relativePath.toLowerCase().endsWith('.webp')
+        )) {
+          imageFiles.push({ path: relativePath, file: zipEntry });
+        }
+      });
+
+      if (imageFiles.length === 0) {
+        alert("No se encontraron imágenes válidas en el archivo ZIP.");
+        setIsImporting(false);
+        return;
+      }
+
+      setImportProgress({ current: 0, total: imageFiles.length });
+
+      // Process and upload each file
+      for (let i = 0; i < imageFiles.length; i++) {
+        const item = imageFiles[i];
+        try {
+          // Parse path (Expected: ROOT / DATE / GROUP / FILE or DATE / GROUP / FILE)
+          const parts = item.path.split('/');
+          
+          // We look for a pattern like YYYY-MM-DD
+          let dateStr = getLocalDateString();
+          let groupName = 'Importado';
+          
+          // Heuristic to find date and group from path
+          // If path is "2024-05-20/GRUPO_A/foto.png", parts are ["2024-05-20", "GRUPO_A", "foto.png"]
+          // If exported by our app, it might be "Fallos_.../2024-05-20/GRUPO_A/foto.png"
+          
+          for (let p = 0; p < parts.length - 1; p++) {
+            const part = parts[p];
+            // Check if it's a date YYYY-MM-DD
+            if (/^\d{4}-\d{2}-\d{2}$/.test(part)) {
+              dateStr = part;
+              if (parts[p+1] && p+1 < parts.length - 1) {
+                groupName = parts[p+1].replace(/_/g, ' ');
+              }
+              break;
+            }
+          }
+
+          // Read file content
+          const blob = await item.file.async("blob");
+          const reader = new FileReader();
+          
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+
+          // Upload
+          await addFallo({
+            description: 'Fallo Importado',
+            imageUrl: base64,
+            date: dateStr,
+            promotoraId: employees.find(e => e.groupName === groupName)?.id || '',
+            promotoraName: '',
+            groupName: groupName,
+            createdAt: new Date().toISOString()
+          } as Omit<Fallo, 'id'>);
+
+          setImportProgress(prev => ({ ...prev, current: i + 1 }));
+        } catch (err) {
+          console.error(`Error importing ${item.path}:`, err);
+        }
+      }
+
+      alert(`Importación completada: ${imageFiles.length} documentos procesados.`);
+      // If we are in the main view, we might need a refresh signal via props or rely on Firestore real-time if used.
+      // But standard is for the parent to handle the state.
+    } catch (error) {
+      console.error("Error parsing zip:", error);
+      alert("Error al procesar el archivo ZIP.");
+    } finally {
+      setIsImporting(false);
+      setImportProgress({ current: 0, total: 0 });
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -266,9 +369,13 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
       setLastUsedGroup({ name: groupName, id: promotoraId });
       setIsModalOpen(false);
       setShowSuccessModal(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving fallo:", error);
-      alert("Error al guardar el documento. " + (error as any).message);
+      let msg = "Error al guardar el documento.";
+      if (error.message?.includes("API Key") || error.message?.includes("imgBB")) {
+        msg = "Error de Configuración: " + error.message;
+      }
+      alert(msg);
     } finally {
       setLoading(false);
     }
@@ -393,6 +500,37 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
 
   return (
     <div className="p-6 space-y-6">
+      {/* Fixed Import Progress Overlay */}
+      <AnimatePresence>
+        {isImporting && (
+          <motion.div 
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-0 left-0 right-0 z-[100] bg-indigo-600 text-white p-4 shadow-xl flex flex-col gap-2"
+          >
+            <div className="flex items-center justify-between max-w-4xl mx-auto w-full">
+              <div className="flex items-center gap-3 font-bold">
+                <RefreshCw className="w-5 h-5 animate-spin" />
+                <span>Importando documentos del ZIP...</span>
+                <span className="bg-white/20 px-2 py-0.5 rounded text-xs">
+                  {importProgress.current} / {importProgress.total}
+                </span>
+              </div>
+              <p className="text-[10px] uppercase tracking-widest opacity-80 font-bold hidden sm:block">No cierres ni recargues la página</p>
+            </div>
+            <div className="max-w-4xl mx-auto w-full bg-white/20 rounded-full h-1.5 overflow-hidden">
+              <motion.div 
+                className="bg-white h-full"
+                initial={{ width: "0%" }}
+                animate={{ width: `${(importProgress.current / (importProgress.total || 1)) * 100}%` }}
+                transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 flex items-center">
@@ -401,10 +539,27 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
           </h2>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {currentUser?.firstName === 'Cristobal' && (currentUser?.accessCode === '5639' || currentUser?.accessCode === '0120') && (
+            <button 
+              onClick={() => zipInputRef.current?.click()}
+              disabled={isImporting}
+              className="flex bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg items-center shadow-sm transition-colors disabled:opacity-50 text-sm"
+            >
+              {isImporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Importar ZIP
+            </button>
+          )}
+          <input 
+            ref={zipInputRef}
+            type="file" 
+            accept=".zip" 
+            className="hidden" 
+            onChange={handleZipImport} 
+          />
           <button 
             onClick={() => setIsDownloadModalOpen(true)}
-            className="hidden md:flex bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg items-center shadow-sm transition-colors"
+            className="hidden sm:flex bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg items-center shadow-sm transition-colors text-sm"
           >
             <Download className="w-5 h-5 mr-2" /> Descargar Masivo
           </button>
@@ -630,19 +785,6 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
                                     >
                                       <Share2 className="w-3 h-3" />
                                     </button>
-
-                                    {fallo.imageUrl.includes('google.com') && (
-                                      <a 
-                                        href={fallo.imageUrl} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="absolute bottom-1 left-1 bg-white/90 p-1 rounded-full text-green-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10"
-                                        title="Abrir en Drive"
-                                      >
-                                        <ExternalLink className="w-3 h-3" />
-                                      </a>
-                                    )}
                                   </div>
                               ))}
                             </div>
@@ -966,7 +1108,11 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
             <Download className="w-6 h-6" />
           </button>
 
-          <img src={viewImage} alt="Full View" className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" />
+          <img 
+            src={viewImage} 
+            alt="Full View" 
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" 
+          />
         </div>
       )}
     </div>
