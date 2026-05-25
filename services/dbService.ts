@@ -17,10 +17,51 @@ import {
   startAfter,
   QueryDocumentSnapshot,
   DocumentData,
-  onSnapshot
+  onSnapshot,
+  Query
 } from "firebase/firestore";
-import { db } from "../firebase";
+import { 
+  ref, 
+  uploadString, 
+  getDownloadURL 
+} from "firebase/storage";
+import { db, storage } from "../firebase";
 import { Employee, Expense, Task, TaskStatus, AppSettings, GeneratedImage, Plaza, Fallo } from "../types";
+import { ensureFolder, uploadImageToDrive } from "./driveService";
+import { getAccessToken } from "./authService";
+
+// --- HELPERS ---
+
+/**
+ * Uploads a base64 string to Firebase Storage and returns the public download URL.
+ * This is MUCH faster for loading than storing base64 in Firestore documents.
+ */
+const uploadBase64ToStorage = async (base64: string, path: string): Promise<string> => {
+  try {
+    // If it's already a URL, don't re-upload
+    if (base64.startsWith('http')) return base64;
+    
+    const storageRef = ref(storage, path);
+    
+    // Create a timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Storage upload timeout')), 45000)
+    );
+
+    // uploadString handles base64 easily
+    const uploadPromise = uploadString(storageRef, base64, 'data_url');
+    
+    const snapshot = await Promise.race([uploadPromise, timeoutPromise]) as any;
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return downloadURL;
+  } catch (error) {
+    console.error("Error uploading to storage:", error);
+    // If it's a timeout or error, we still need to return something.
+    // If we return the base64, Firestore might reject it if it's too big (>1MB),
+    // but at least it won't hang forever.
+    return base64; 
+  }
+};
 
 // --- REAL-TIME SUBSCRIPTIONS ---
 
@@ -92,10 +133,17 @@ export const subscribeToAllExpenses = (callback: (expenses: Expense[]) => void, 
   }, onError);
 };
 
-export const subscribeToAllFallos = (callback: (fallos: Fallo[]) => void, onError: (error: any) => void, limitCount: number = 100) => {
-  const q = limitCount > 0
-    ? query(collection(db, "fallos"), orderBy("date", "desc"), limit(limitCount))
-    : query(collection(db, "fallos"), orderBy("date", "desc"));
+export const subscribeToAllFallos = (callback: (fallos: Fallo[]) => void, onError: (error: any) => void, limitCount: number = 100, startDate?: string) => {
+  let q: Query<DocumentData>;
+  const fallosRef = collection(db, "fallos");
+  
+  if (startDate) {
+    q = query(fallosRef, where("date", ">=", startDate), orderBy("date", "desc"));
+  } else if (limitCount > 0) {
+    q = query(fallosRef, orderBy("date", "desc"), limit(limitCount));
+  } else {
+    q = query(fallosRef, orderBy("date", "desc"));
+  }
 
   return onSnapshot(q, (snapshot) => {
     const fallos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
@@ -107,13 +155,18 @@ export const subscribeToAllFallos = (callback: (fallos: Fallo[]) => void, onErro
 
 const compressBase64 = (base64: string): Promise<string> => {
   return new Promise((resolve) => {
-    if (base64.length < 700000) {
+    // 10s timeout for compression safety
+    const timeout = setTimeout(() => resolve(base64), 10000);
+
+    if (!base64 || base64.length < 500000) {
+      clearTimeout(timeout);
       resolve(base64);
       return;
     }
     const img = new Image();
     img.src = base64;
     img.onload = () => {
+      clearTimeout(timeout);
       const canvas = document.createElement('canvas');
       const MAX_WIDTH = 1024; 
       let width = img.width;
@@ -135,6 +188,7 @@ const compressBase64 = (base64: string): Promise<string> => {
       }
     };
     img.onerror = () => {
+      clearTimeout(timeout);
       resolve(base64);
     };
   });
@@ -252,7 +306,12 @@ export const getExpenses = async (): Promise<Expense[]> => {
 };
 
 export const addExpense = async (expense: Omit<Expense, 'id'>) => {
-  return await addDoc(collection(db, "expenses"), expense);
+  let finalTicketImage = expense.ticketImage;
+  if (expense.ticketImage && !expense.ticketImage.startsWith('http')) {
+    const fileName = `expense_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    finalTicketImage = await uploadBase64ToStorage(expense.ticketImage, `expenses/${fileName}`);
+  }
+  return await addDoc(collection(db, "expenses"), { ...expense, ticketImage: finalTicketImage });
 };
 
 export const getExpensesByDateRange = async (startDate: string, endDate: string): Promise<Expense[]> => {
@@ -358,7 +417,9 @@ export const getGalleryImages = async (): Promise<GeneratedImage[]> => {
 
 export const saveGalleryImage = async (image: Omit<GeneratedImage, 'id'>) => {
   const compressedUrl = await compressBase64(image.imageUrl);
-  return await addDoc(collection(db, "gallery"), { ...image, imageUrl: compressedUrl });
+  const fileName = `gallery_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  const storageUrl = await uploadBase64ToStorage(compressedUrl, `gallery/${fileName}`);
+  return await addDoc(collection(db, "gallery"), { ...image, imageUrl: storageUrl });
 };
 
 export const deleteGalleryImage = async (id: string) => {
@@ -388,8 +449,9 @@ export const saveDailyBirthdayCard = async (employeeId: string, imageUrl: string
     const docId = `birthday_${today}_${employeeId}`;
     const docRef = doc(db, "daily_events", docId);
     const compressedUrl = await compressBase64(imageUrl);
+    const storageUrl = await uploadBase64ToStorage(compressedUrl, `birthdays/${docId}`);
     await setDoc(docRef, {
-      imageUrl: compressedUrl,
+      imageUrl: storageUrl,
       employeeId,
       date: today,
       createdAt: new Date().toISOString()
@@ -407,10 +469,74 @@ export const getFallos = async (): Promise<Fallo[]> => {
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Fallo));
 };
 
+// --- FALLOS MANAGEMENT ---
+
+export const getBase64Fallos = async (): Promise<Fallo[]> => {
+  const q = query(collection(db, "fallos"));
+  const snapshot = await getDocs(q);
+  // Filter client-side because Firestore doesn't support complex string pattern matching like "startsWith" efficiently for non-indexable values
+  return snapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() } as Fallo))
+    .filter(f => f.imageUrl && f.imageUrl.startsWith('data:'));
+};
+
+export const deleteBase64Fallos = async () => {
+  const base64Fallos = await getBase64Fallos();
+  const deletePromises = base64Fallos.map(f => deleteDoc(doc(db, "fallos", f.id)));
+  return await Promise.all(deletePromises);
+};
+
+export const importFallos = async (fallos: Omit<Fallo, 'id'>[]) => {
+  const addPromises = fallos.map(f => addFallo(f));
+  return await Promise.all(addPromises);
+};
+
 export const addFallo = async (fallo: Omit<Fallo, 'id'>) => {
-  // Compress image before saving to "save space" as requested (simulating storage optimization)
-  const compressedImage = await compressBase64(fallo.imageUrl);
-  return await addDoc(collection(db, "fallos"), { ...fallo, imageUrl: compressedImage });
+  // Check if image is already a URL or needs processing
+  let imageToProcess = fallo.imageUrl;
+  if (!imageToProcess.startsWith('http') && imageToProcess.length > 500000) {
+    imageToProcess = await compressBase64(fallo.imageUrl);
+  }
+  
+  // Try Google Drive if token available
+  const driveToken = await getAccessToken();
+  let finalImageUrl = '';
+
+  if (driveToken) {
+    // Wrap entire Drive operation in a timeout to avoid hanging the app
+    const drivePromise = (async () => {
+      try {
+        const folderId = await ensureFolder("Mi Oficina - Fallos");
+        const fileName = `fallo_${Date.now()}_${(fallo.groupName || 'Sin-Grupo').replace(/\s+/g, '_')}.png`;
+        const driveFile = await uploadImageToDrive(imageToProcess, fileName, folderId);
+        return driveFile.webContentLink || driveFile.webViewLink;
+      } catch (e) {
+        console.error("Internal Drive upload failure:", e);
+        return '';
+      }
+    })();
+
+    // Max 20 seconds for Drive before falling back
+    const timeoutPromise = new Promise<string>((resolve) => setTimeout(() => resolve(''), 20000));
+    finalImageUrl = await Promise.race([drivePromise, timeoutPromise]);
+  }
+
+  // Fallback to Firebase Storage if Drive failed, was timed out, or not available
+  if (!finalImageUrl) {
+    try {
+      const fileName = `fallos/fallo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      finalImageUrl = await uploadBase64ToStorage(imageToProcess, fileName);
+    } catch (e) {
+      console.error("Storage fallback failed:", e);
+      // Last resort: store small base64 if possible
+      finalImageUrl = imageToProcess; 
+    }
+  }
+  
+  return await addDoc(collection(db, "fallos"), { 
+    ...fallo, 
+    imageUrl: finalImageUrl 
+  });
 };
 
 export const deleteFallo = async (id: string) => {

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Upload, Trash2, X, FileWarning, User, Users, Eye, ChevronDown, ChevronRight, Calendar, Download, Share2, CheckCircle, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, Upload, Trash2, X, FileWarning, User, Users, Eye, ChevronDown, ChevronRight, Calendar, Download, Share2, CheckCircle, Loader2, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
 import { Employee, Fallo } from '../types';
 import { addFallo, deleteFallo } from '../services/dbService';
 import JSZip from 'jszip';
@@ -103,9 +103,17 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
         try {
           const response = await fetch(f.imageUrl);
           const blob = await response.blob();
-          // Use a descriptive name for each file
-          const fileName = `${f.date}_${(f.groupName || 'SinGrupo').replace(/\s+/g, '_')}_${index + 1}.png`;
-          folder?.file(fileName, blob);
+          
+          // Organize in subfolders: DATE / GROUP
+          const dateStr = f.date || 'Sin_Fecha';
+          const groupStr = (f.groupName || 'Sin_Grupo').trim().replace(/[\/\\?%*:|"<>]/g, '-'); // Sanitize folder name
+          
+          // Create the nested structure inside the main folder
+          const subFolder = folder?.folder(dateStr)?.folder(groupStr);
+          
+          // Use a simple name inside the group folder
+          const fileName = `fallo_${index + 1}.png`;
+          subFolder?.file(fileName, blob);
         } catch (e) {
           console.error("Error fetching image for zip", e);
         }
@@ -415,7 +423,7 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
           <p className="text-xs text-amber-800">
             {loadAll 
               ? "Se están mostrando todos los fallos registrados." 
-              : "Para mantener la velocidad de la aplicación, solo se muestran los últimos 300 fallos."}
+              : "Para mantener la velocidad, solo se muestran los fallos de los últimos 3 meses."}
           </p>
           {!loadAll && onLoadAll && (
             <button 
@@ -596,6 +604,7 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
                                   <img 
                                     src={fallo.imageUrl} 
                                     alt="Documento" 
+                                    loading="lazy"
                                     className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
                                     onClick={() => setViewImage(fallo.imageUrl)}
                                   />
@@ -611,17 +620,30 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
                                     <Trash2 className="w-3 h-3" />
                                   </button>
                                   
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleShare(fallo.imageUrl, fallo.description);
-                                    }}
-                                    className="absolute bottom-1 right-1 bg-white/90 p-1 rounded-full text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10"
-                                    title="Compartir"
-                                  >
-                                    <Share2 className="w-3 h-3" />
-                                  </button>
-                                </div>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleShare(fallo.imageUrl, fallo.description);
+                                      }}
+                                      className="absolute bottom-1 right-1 bg-white/90 p-1 rounded-full text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10"
+                                      title="Compartir"
+                                    >
+                                      <Share2 className="w-3 h-3" />
+                                    </button>
+
+                                    {fallo.imageUrl.includes('google.com') && (
+                                      <a 
+                                        href={fallo.imageUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="absolute bottom-1 left-1 bg-white/90 p-1 rounded-full text-green-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10"
+                                        title="Abrir en Drive"
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    )}
+                                  </div>
                               ))}
                             </div>
                           )}
@@ -901,10 +923,20 @@ export const Fallos: React.FC<FallosProps> = ({ employees, fallos, isLoading, lo
 
               <button 
                 type="submit" 
-                disabled={loading}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-lg font-medium shadow-md transition-colors disabled:opacity-50"
+                disabled={loading || isCompressing}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95 mt-4"
               >
-                {loading ? 'Subiendo...' : 'Guardar Fallo'}
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Subiendo Documento...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-5 h-5" />
+                    <span>Guardar Documento</span>
+                  </>
+                )}
               </button>
             </form>
           </div>

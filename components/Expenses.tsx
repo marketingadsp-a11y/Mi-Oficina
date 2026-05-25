@@ -296,7 +296,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ expenses, isLoading, loadAll
             <p className="text-[10px] text-amber-800">
               {loadAll 
                 ? "Se están mostrando todos los gastos registrados." 
-                : "Para mantener la velocidad, solo se muestran los últimos 300 gastos."}
+                : "Para mantener la velocidad, solo se muestran los últimos 50 gastos."}
             </p>
             {!loadAll && onLoadAll && (
               <button 
