@@ -201,9 +201,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, employees, ex
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Hola, {greetingName}</h2>
-        <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded-full border border-gray-200 shadow-sm">
+      <div className="flex justify-between items-center gap-4">
+        <div className="flex items-center gap-4">
+          {mascotaUrl && (
+            <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-white ring-4 ring-indigo-50/50 shrink-0 transform -rotate-3 transition-transform hover:rotate-0">
+              <img src={mascotaUrl} alt={mascotaName} className="w-full h-full object-cover" />
+            </div>
+          )}
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Hola, {greetingName}</h2>
+            <p className="text-sm text-gray-500 hidden sm:block">Bienvenido a {companyName || 'tu oficina'}</p>
+          </div>
+        </div>
+        <span className="text-sm text-gray-500 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm shrink-0">
           {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </span>
       </div>
