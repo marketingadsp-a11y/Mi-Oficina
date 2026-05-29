@@ -943,7 +943,11 @@ export const Fallos: React.FC<FallosProps> = ({ currentUser, employees, fallos, 
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-800">Subir Fallo</h3>
+              <h3 className="text-xl font-bold text-gray-800">
+                {currentUser?.firstName 
+                  ? `Hola, ${currentUser.firstName.split(' ')[0]}, Sube tus fallos` 
+                  : 'Sube tus fallos'}
+              </h3>
               <button onClick={() => {
                 setIsModalOpen(false);
                 setGroupSearch('');
@@ -1076,7 +1080,7 @@ export const Fallos: React.FC<FallosProps> = ({ currentUser, employees, fallos, 
                 ) : (
                   <>
                     <CheckCircle className="w-5 h-5" />
-                    <span>Guardar Documento</span>
+                    <span>Guardar Fallo</span>
                   </>
                 )}
               </button>
