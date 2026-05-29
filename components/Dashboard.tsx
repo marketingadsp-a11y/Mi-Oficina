@@ -169,8 +169,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, employees, ex
 
   const handleManualSelect = (emp: Employee) => {
     setManualSelection(emp);
-    // Smooth scroll to top to see the generated card
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Smooth scroll to top of the scroll container to see the generated card
+    const scrollContainer = document.querySelector('.overflow-auto') || window;
+    scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleRegenerate = () => {
