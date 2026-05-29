@@ -100,6 +100,7 @@ export const subscribeToAppSettings = (callback: (settings: AppSettings) => void
         mascotaName: data.mascotaName || 'Mascota',
         mascotaUrl: data.mascotaUrl || '',
         googleApiKey: data.googleApiKey || DEFINITIVE_KEY,
+        imgbbApiKey: data.imgbbApiKey || '',
         appVersion: data.appVersion || '1.0.0',
         appStatusColor: data.appStatusColor || '#10B981',
         mobileNavSections: data.mobileNavSections || ['dashboard', 'personnel', 'expenses', 'tasks', 'fallos'],
@@ -375,6 +376,7 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         mascotaName: data.mascotaName || 'Mascota',
         mascotaUrl: data.mascotaUrl || '',
         googleApiKey: data.googleApiKey || DEFINITIVE_KEY,
+        imgbbApiKey: data.imgbbApiKey || '',
         appVersion: data.appVersion || '1.0.0',
         appStatusColor: data.appStatusColor || '#10B981',
         birthdayPrompt: data.birthdayPrompt || ''
@@ -385,6 +387,7 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         mascotaName: 'Mascota',
         mascotaUrl: '',
         googleApiKey: DEFINITIVE_KEY,
+        imgbbApiKey: '',
         appVersion: '1.0.0',
         appStatusColor: '#10B981',
         birthdayPrompt: ''
@@ -397,6 +400,7 @@ export const getAppSettings = async (): Promise<AppSettings> => {
       mascotaName: 'Mascota', 
       mascotaUrl: '', 
       googleApiKey: 'AQ.Ab8RN6KBWwPbT4jL9GDFk7CMbfhEvTyTUlnVJixCxGTp28mApg',
+      imgbbApiKey: '',
       appVersion: '1.0.0',
       appStatusColor: '#10B981',
       birthdayPrompt: ''
@@ -502,8 +506,11 @@ export const addFallo = async (fallo: Omit<Fallo, 'id'>) => {
   }
   
   try {
+    const settings = await getAppSettings();
+    const customImgbbKey = settings.imgbbApiKey || undefined;
+    
     // Upload to imgBB
-    const imageUrl = await uploadToImgBB(imageToProcess);
+    const imageUrl = await uploadToImgBB(imageToProcess, customImgbbKey);
     
     return await addDoc(collection(db, "fallos"), { 
       ...fallo, 

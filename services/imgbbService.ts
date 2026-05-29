@@ -2,8 +2,8 @@
  * Service to handle image uploads to imgBB
  */
 
-export const uploadToImgBB = async (base64Data: string): Promise<string> => {
-  const apiKey = import.meta.env.VITE_IMGBB_API_KEY;
+export const uploadToImgBB = async (base64Data: string, customApiKey?: string): Promise<string> => {
+  const apiKey = customApiKey || import.meta.env.VITE_IMGBB_API_KEY;
   
   if (!apiKey) {
     throw new Error("API Key de imgBB no configurada. Por favor, añádela en los Ajustes.");

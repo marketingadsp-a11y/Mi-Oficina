@@ -74,6 +74,7 @@ export interface AppSettings {
   mascotaName: string;
   mascotaUrl: string;
   googleApiKey?: string;
+  imgbbApiKey?: string;
   appVersion?: string;
   appStatusColor?: string;
   mobileNavSections?: string[];

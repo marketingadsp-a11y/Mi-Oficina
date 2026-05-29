@@ -129,6 +129,7 @@ function App() {
     { id: 'mascota', label: `Mi ${mascotaName}`, icon: ImageIcon }, 
   ], [mascotaName]);
   const [googleApiKey, setGoogleApiKey] = useState('');
+  const [imgbbApiKey, setImgbbApiKey] = useState('');
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [appStatusColor, setAppStatusColor] = useState('#10B981'); 
   const [mobileNavSections, setMobileNavSections] = useState<string[]>(['tablero', 'personal', 'gastos', 'tareas', 'fallos']);
@@ -143,6 +144,7 @@ function App() {
   const [tempMascotaName, setTempMascotaName] = useState('');
   const [tempCompanyName, setTempCompanyName] = useState('');
   const [tempGoogleApiKey, setTempGoogleApiKey] = useState('');
+  const [tempImgbbApiKey, setTempImgbbApiKey] = useState('');
   const [tempAppVersion, setTempAppVersion] = useState('');
   const [tempAppStatusColor, setTempAppStatusColor] = useState('');
   const [tempMobileNavSections, setTempMobileNavSections] = useState<string[]>([]);
@@ -293,6 +295,7 @@ function App() {
         setMascotaName(settingsData.mascotaName || 'Mascota');
         setMascotaUrl(settingsData.mascotaUrl || '');
         setGoogleApiKey(settingsData.googleApiKey || '');
+        setImgbbApiKey(settingsData.imgbbApiKey || '');
         setAppVersion(settingsData.appVersion || '1.0.0');
         setAppStatusColor(settingsData.appStatusColor || '#10B981');
       } catch (e) {
@@ -391,6 +394,9 @@ function App() {
       setMascotaName(settings.mascotaName);
       setMascotaUrl(settings.mascotaUrl);
       setGoogleApiKey(settings.googleApiKey);
+      if (settings.imgbbApiKey !== undefined) {
+        setImgbbApiKey(settings.imgbbApiKey);
+      }
       setAppVersion(settings.appVersion);
       setAppStatusColor(settings.appStatusColor);
       if (settings.mobileNavSections) {
@@ -537,6 +543,7 @@ function App() {
     setTempMascotaName(mascotaName);
     setTempCompanyName(companyName);
     setTempGoogleApiKey(googleApiKey);
+    setTempImgbbApiKey(imgbbApiKey);
     setTempAppVersion(appVersion);
     setTempAppStatusColor(appStatusColor);
     setTempMobileNavSections([...mobileNavSections]);
@@ -673,6 +680,7 @@ function App() {
     setIsSavingSettings(true);
     const finalMascotaName = tempMascotaName || 'Mascota';
     const finalApiKey = tempGoogleApiKey.trim(); 
+    const finalImgbbApiKey = tempImgbbApiKey.trim();
     const finalVersion = tempAppVersion || '1.0.0';
     const finalColor = tempAppStatusColor || '#10B981';
     
@@ -682,6 +690,7 @@ function App() {
         mascotaName: finalMascotaName,
         mascotaUrl: tempMascotaUrl,
         googleApiKey: finalApiKey,
+        imgbbApiKey: finalImgbbApiKey,
         appVersion: finalVersion,
         appStatusColor: finalColor,
         mobileNavSections: tempMobileNavSections,
@@ -692,6 +701,7 @@ function App() {
       setMascotaName(finalMascotaName);
       setCompanyName(tempCompanyName);
       setGoogleApiKey(finalApiKey);
+      setImgbbApiKey(finalImgbbApiKey);
       setAppVersion(finalVersion);
       setAppStatusColor(finalColor);
       setMobileNavSections(tempMobileNavSections);
@@ -1067,6 +1077,27 @@ function App() {
                        keyStatus === 'error' ? <AlertCircle className="w-5 h-5" /> :
                        <span className="text-xs font-bold">PROBAR</span>}
                     </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* IMGBB API KEY SECTION */}
+              <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-indigo-800 mb-2 flex items-center">
+                     <Key className="w-4 h-4 mr-2 text-indigo-600" /> API Key de imgBB (Servidor de Imágenes)
+                  </label>
+                  <p className="text-xs text-indigo-600 mb-2">
+                    Requerido para almacenar las fotos de los Fallos/Documentos. Si se deja en blanco, se usará la API Key por defecto de la aplicación.
+                  </p>
+                  <div className="flex gap-2">
+                    <input 
+                      type="password" 
+                      className="w-full border-2 border-indigo-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 rounded-xl p-3 text-sm outline-none transition-all bg-white"
+                      placeholder="Pega tu API Key de imgBB..."
+                      value={tempImgbbApiKey}
+                      onChange={(e) => setTempImgbbApiKey(e.target.value.replace(/\s/g, ''))}
+                    />
                   </div>
                 </div>
               </div>
