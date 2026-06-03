@@ -540,7 +540,9 @@ export const Fallos: React.FC<FallosProps> = ({ currentUser, employees, fallos, 
         </div>
         
         <div className="flex flex-wrap gap-2">
-          {currentUser?.firstName === 'Cristobal' && (currentUser?.accessCode === '5639' || currentUser?.accessCode === '0120') && (
+          {currentUser && 
+           currentUser.firstName?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").startsWith('cristobal') && 
+           (currentUser.accessCode === '5639' || currentUser.accessCode === '0120' || currentUser.accessCode === '539') && (
             <button 
               onClick={() => zipInputRef.current?.click()}
               disabled={isImporting}
