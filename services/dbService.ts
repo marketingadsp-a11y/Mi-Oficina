@@ -492,6 +492,26 @@ export const saveDailyBirthdayVideo = async (employeeId: string, videoUrl: strin
   }
 };
 
+export interface DailyBirthdayEvent {
+  id: string;
+  employeeId: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  date: string;
+  createdAt: string;
+}
+
+export const getAllDailyBirthdayEvents = async (): Promise<DailyBirthdayEvent[]> => {
+  try {
+    const q = query(collection(db, "daily_events"), orderBy("createdAt", "desc"), limit(24));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyBirthdayEvent));
+  } catch (e) {
+    console.error("Error fetching daily birthday events", e);
+    return [];
+  }
+};
+
 // --- FALLOS / DOCUMENTOS ---
 
 export const getFallos = async (): Promise<Fallo[]> => {

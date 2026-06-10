@@ -17,7 +17,13 @@ import {
 } from 'lucide-react';
 import { Employee, Expense, Task, TaskStatus } from '../types';
 import { generateMascotaImage, generateMascotaVideo } from '../services/geminiService';
-import { getDailyBirthdayCard, saveDailyBirthdayCard, saveDailyBirthdayVideo } from '../services/dbService';
+import { 
+  getDailyBirthdayCard, 
+  saveDailyBirthdayCard, 
+  saveDailyBirthdayVideo, 
+  getAllDailyBirthdayEvents, 
+  DailyBirthdayEvent 
+} from '../services/dbService';
 
 interface DashboardProps {
   currentUser: Employee; // Added currentUser to props
@@ -52,6 +58,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
   
   // State for manually selected person to generate card
   const [manualSelection, setManualSelection] = useState<Employee | null>(null);
+
+  // Birthday Events History State
+  const [bdayEventsHistory, setBdayEventsHistory] = useState<DailyBirthdayEvent[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const loadHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const events = await getAllDailyBirthdayEvents();
+      setBdayEventsHistory(events);
+    } catch (e) {
+      console.error("Error loading birthday events history:", e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   // Calculate Metrics
   const totalExpenses = useMemo(() => expenses.reduce((acc, curr) => acc + curr.amount, 0), [expenses]);
@@ -92,6 +114,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const displayPerson = useMemo(() => {
     return manualSelection || (todayBirthdays.length > 0 ? todayBirthdays[0] : null);
   }, [manualSelection, todayBirthdays]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [displayPerson?.id]);
 
   // Upcoming tasks logic
   const upcomingTasks = useMemo(() => {
@@ -152,6 +178,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           setBirthdayImage(result.imageUrl);
           // Save to Database so everyone sees the same image
           await saveDailyBirthdayCard(person.id, result.imageUrl);
+          await loadHistory();
         }
       }
     } catch (error) {
@@ -192,6 +219,7 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
           setBirthdayVideo(result.videoUrl);
           // Save to Database so everyone sees the same video
           await saveDailyBirthdayVideo(person.id, result.videoUrl);
+          await loadHistory();
         } else if (result.error) {
           alert(`Error generando video: ${result.error}`);
         }
@@ -329,6 +357,21 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
               <h3 className="text-4xl font-extrabold mb-2">
                 {displayPerson.firstName} {displayPerson.lastName}
               </h3>
+              
+              {/* Informative Save Status Badge */}
+              {activeMediaTab === 'image' && birthdayImage && (
+                <div className="mb-4 inline-flex items-center gap-1.5 bg-emerald-500/30 text-emerald-500 bg-white/90 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                  Imagen guardada!
+                </div>
+              )}
+              {activeMediaTab === 'video' && birthdayVideo && (
+                <div className="mb-4 inline-flex items-center gap-1.5 bg-indigo-500/30 text-indigo-100 bg-white/10 border border-white/20 px-3 py-1.5 rounded-xl text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-indigo-300 animate-pulse shrink-0"></span>
+                  Video guardado
+                </div>
+              )}
+
               <p className="text-blue-100 text-lg mb-4">
                 Elige el formato de felicitación para {displayPerson.firstName}:
               </p>
@@ -461,6 +504,99 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
                 )
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Saved Birthday Media Gallery History */}
+      {bdayEventsHistory.length > 0 && (
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm animate-fade-in">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <Cake className="w-5 h-5 text-indigo-600 animate-bounce" />
+              Galería de Felicitaciones Guardadas (Ahorro Activo)
+            </h3>
+            <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
+              {bdayEventsHistory.length} guardadas
+            </span>
+          </div>
+
+          <p className="text-xs text-gray-500 mb-6 font-medium">
+            Estas felicitaciones ya han sido generadas y están almacenadas de forma segura. Toda la oficina puede consultarlas y descargarlas sin volver a consumir API ni cuota.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {bdayEventsHistory.map(event => {
+              const emp = employees.find(e => e.id === event.employeeId);
+              if (!emp) return null;
+
+              return (
+                <div 
+                  key={event.id}
+                  className="bg-gray-50/50 border border-gray-100 rounded-xl p-3 flex flex-col justify-between hover:border-indigo-200 hover:shadow-md transition-all group duration-300 relative"
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Media thumbnail */}
+                    <div className="w-12 h-12 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0 border border-indigo-100/50 overflow-hidden relative">
+                      {event.videoUrl ? (
+                        <div className="absolute inset-0 bg-indigo-900/10 flex items-center justify-center">
+                          <Wand2 className="w-5 h-5 text-indigo-600 animate-pulse" />
+                        </div>
+                      ) : event.imageUrl ? (
+                        <img src={event.imageUrl} alt="Tarjeta" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                      ) : (
+                        <Cake className="w-6 h-6 text-indigo-400" />
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-gray-800 text-sm truncate">
+                        {emp.firstName} {emp.lastName}
+                      </h4>
+                      <p className="text-[11px] text-gray-400 truncate">{emp.position || 'Colaborador'}</p>
+                      
+                      {/* Format Badge */}
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded ${
+                        event.videoUrl 
+                          ? 'bg-purple-100 text-purple-700' 
+                          : 'bg-indigo-100 text-indigo-700'
+                      }`}>
+                        {event.videoUrl ? (
+                          <>
+                            <Wand2 className="w-2.5 h-2.5" /> Video (Veo)
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-2.5 h-2.5" /> Imagen 3D
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-[11px]">
+                    <span className="text-gray-400 font-mono font-medium">
+                      {event.date}
+                    </span>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManualSelection(emp);
+                        // Auto-toggle tab
+                        setActiveMediaTab(event.videoUrl ? 'video' : 'image');
+                        // Scroll smoothly to top
+                        const scrollContainer = document.querySelector('.overflow-auto') || window;
+                        scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 transition-colors"
+                    >
+                      Ver en Tablero
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
