@@ -103,6 +103,116 @@ export const generateMascotaImage = async (
 };
 
 /**
+ * Genera un video de Mascota usando Veo.
+ */
+export const generateMascotaVideo = async (
+  referenceImageBase64: string,
+  userPrompt: string,
+  onProgress?: (message: string) => void
+): Promise<{ videoUrl: string | null; error?: string }> => {
+  const ai = await getAiInstance();
+  if (!ai) return { videoUrl: null, error: "No hay API Key configurada." };
+
+  try {
+    const cleanBase64 = referenceImageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+
+    if (onProgress) onProgress("Iniciando Veo para generación de video...");
+
+    const operation = await ai.models.generateVideos({
+      model: 'veo-3.1-lite-generate-preview',
+      prompt: userPrompt,
+      image: {
+        imageBytes: cleanBase64,
+        mimeType: 'image/png',
+      },
+      config: {
+        numberOfVideos: 1,
+        resolution: '720p',
+        aspectRatio: '16:9'
+      }
+    });
+
+    if (onProgress) onProgress("Procesando y generando animación...");
+
+    let completed = false;
+    let attempts = 0;
+    const maxAttempts = 30; // 300 segundos (5 minutos)
+
+    while (!completed && attempts < maxAttempts) {
+      attempts++;
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+
+      const updated = await ai.operations.getVideosOperation({ operation });
+
+      if (updated.done) {
+        completed = true;
+        const uri = updated.response?.generatedVideos?.[0]?.video?.uri;
+        if (uri) {
+          if (onProgress) onProgress("Descargando video de los servidores de Google...");
+
+          let finalKey = USER_PROVIDED_KEY;
+          try {
+            const settings = await getAppSettings();
+            if (settings.googleApiKey && settings.googleApiKey.trim().length > 10) {
+              finalKey = settings.googleApiKey.trim();
+            }
+          } catch (e) {}
+
+          const videoRes = await fetch(uri, {
+            headers: { 'x-goog-api-key': finalKey }
+          });
+
+          if (!videoRes.ok) {
+            return { videoUrl: null, error: `Error descargando el video: ${videoRes.statusText}` };
+          }
+
+          const blob = await videoRes.blob();
+          const reader = new FileReader();
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+          });
+          
+          reader.readAsDataURL(blob);
+          const base64DataUrl = await base64Promise;
+
+          return { videoUrl: base64DataUrl };
+        } else {
+          return { videoUrl: null, error: "No se generó el video." };
+        }
+      }
+
+      if (onProgress) {
+        onProgress(`Generando video con Veo... (Intento ${attempts}/${maxAttempts})`);
+      }
+    }
+
+    return { videoUrl: null, error: "La generación de video tomó demasiado tiempo." };
+  } catch (error: any) {
+    console.error("Veo Error:", error);
+    
+    // Detailed permission error handling for premium models like Google Veo
+    const isPermissionError = 
+      error.status === 403 || 
+      error.code === 403 || 
+      error.message?.includes('permission') || 
+      error.message?.includes('PERMISSION_DENIED');
+
+    if (isPermissionError) {
+      return { 
+        videoUrl: null, 
+        error: "🔒 Error de Permisos (PERMISSION_DENIED). La API de generación de videos Google Veo requiere una clave con facturación activa (Paid API Key). Por favor, pulsa el botón 'Habilitar Facturación' en el chat o configúrala en Ajustes." 
+      };
+    }
+
+    if (error.status === 429 || error.code === 429 || error.message?.includes('429')) {
+      return { videoUrl: null, error: "⏳ Límite de velocidad alcanzado. Espera un momento antes de generar otra vez." };
+    }
+    return { videoUrl: null, error: error.message || "Error al conectar con Google Veo." };
+  }
+};
+
+/**
  * Genera insights de texto.
  */
 export const generateOfficeInsights = async (

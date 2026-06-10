@@ -104,7 +104,8 @@ export const subscribeToAppSettings = (callback: (settings: AppSettings) => void
         appVersion: data.appVersion || '1.0.0',
         appStatusColor: data.appStatusColor || '#10B981',
         mobileNavSections: data.mobileNavSections || ['dashboard', 'personnel', 'expenses', 'tasks', 'fallos'],
-        birthdayPrompt: data.birthdayPrompt || ''
+        birthdayPrompt: data.birthdayPrompt || '',
+        birthdayVideoPrompt: data.birthdayVideoPrompt || ''
       });
     }
   }, onError);
@@ -379,7 +380,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         imgbbApiKey: data.imgbbApiKey || '',
         appVersion: data.appVersion || '1.0.0',
         appStatusColor: data.appStatusColor || '#10B981',
-        birthdayPrompt: data.birthdayPrompt || ''
+        birthdayPrompt: data.birthdayPrompt || '',
+        birthdayVideoPrompt: data.birthdayVideoPrompt || ''
       };
     } else {
       return {
@@ -390,7 +392,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         imgbbApiKey: '',
         appVersion: '1.0.0',
         appStatusColor: '#10B981',
-        birthdayPrompt: ''
+        birthdayPrompt: '',
+        birthdayVideoPrompt: ''
       };
     }
   } catch (error) {
@@ -403,7 +406,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
       imgbbApiKey: '',
       appVersion: '1.0.0',
       appStatusColor: '#10B981',
-      birthdayPrompt: ''
+      birthdayPrompt: '',
+      birthdayVideoPrompt: ''
     };
   }
 };
@@ -432,14 +436,18 @@ export const deleteGalleryImage = async (id: string) => {
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const getDailyBirthdayCard = async (employeeId: string): Promise<string | null> => {
+export const getDailyBirthdayCard = async (employeeId: string): Promise<{ imageUrl: string | null; videoUrl: string | null } | null> => {
   try {
     const today = getLocalDateString(); 
     const docId = `birthday_${today}_${employeeId}`;
     const docRef = doc(db, "daily_events", docId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      return docSnap.data().imageUrl;
+      const data = docSnap.data();
+      return {
+        imageUrl: data.imageUrl || null,
+        videoUrl: data.videoUrl || null
+      };
     }
     return null;
   } catch (e) {
@@ -459,9 +467,28 @@ export const saveDailyBirthdayCard = async (employeeId: string, imageUrl: string
       employeeId,
       date: today,
       createdAt: new Date().toISOString()
-    });
+    }, { merge: true });
   } catch (e) {
     console.error("Error saving daily birthday card", e);
+  }
+};
+
+export const saveDailyBirthdayVideo = async (employeeId: string, videoUrl: string) => {
+  try {
+    const today = getLocalDateString();
+    const docId = `birthday_${today}_${employeeId}`;
+    const docRef = doc(db, "daily_events", docId);
+    
+    // Upload video base64 data to Firebase Storage for fast loading
+    const storageUrl = await uploadBase64ToStorage(videoUrl, `birthdays/${docId}_video`);
+    await setDoc(docRef, {
+      videoUrl: storageUrl,
+      employeeId,
+      date: today,
+      createdAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (e) {
+    console.error("Error saving daily birthday video", e);
   }
 };
 

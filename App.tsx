@@ -33,7 +33,8 @@ import {
   FileDown,
   FileUp,
   Cloud,
-  ExternalLink
+  ExternalLink,
+  Wand2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -134,6 +135,7 @@ function App() {
   const [appStatusColor, setAppStatusColor] = useState('#10B981'); 
   const [mobileNavSections, setMobileNavSections] = useState<string[]>(['tablero', 'personal', 'gastos', 'tareas', 'fallos']);
   const [birthdayPrompt, setBirthdayPrompt] = useState<string>('');
+  const [birthdayVideoPrompt, setBirthdayVideoPrompt] = useState<string>('');
   const [loadAllExpenses, setLoadAllExpenses] = useState(false);
   const [loadAllFallos, setLoadAllFallos] = useState(false);
   const [isSyncingExpenses, setIsSyncingExpenses] = useState(false);
@@ -149,6 +151,7 @@ function App() {
   const [tempAppStatusColor, setTempAppStatusColor] = useState('');
   const [tempMobileNavSections, setTempMobileNavSections] = useState<string[]>([]);
   const [tempBirthdayPrompt, setTempBirthdayPrompt] = useState('');
+  const [tempBirthdayVideoPrompt, setTempBirthdayVideoPrompt] = useState('');
   
   // Storage Migration / Cleanup UI state
   const [deleteBase64Auth, setDeleteBase64Auth] = useState('');
@@ -414,6 +417,9 @@ function App() {
       if (settings.birthdayPrompt) {
         setBirthdayPrompt(settings.birthdayPrompt);
       }
+      if (settings.birthdayVideoPrompt) {
+        setBirthdayVideoPrompt(settings.birthdayVideoPrompt);
+      }
     }, (err) => handleError(err, 'GET', 'settings/global_config')));
 
     // Employees
@@ -548,6 +554,7 @@ function App() {
     setTempAppStatusColor(appStatusColor);
     setTempMobileNavSections([...mobileNavSections]);
     setTempBirthdayPrompt(birthdayPrompt);
+    setTempBirthdayVideoPrompt(birthdayVideoPrompt);
     setKeyStatus('idle');
     setIsSettingsOpen(true);
     setUserMenuOpen(false);
@@ -694,7 +701,8 @@ function App() {
         appVersion: finalVersion,
         appStatusColor: finalColor,
         mobileNavSections: tempMobileNavSections,
-        birthdayPrompt: tempBirthdayPrompt
+        birthdayPrompt: tempBirthdayPrompt,
+        birthdayVideoPrompt: tempBirthdayVideoPrompt
       });
 
       setMascotaUrl(tempMascotaUrl);
@@ -706,6 +714,7 @@ function App() {
       setAppStatusColor(finalColor);
       setMobileNavSections(tempMobileNavSections);
       setBirthdayPrompt(tempBirthdayPrompt);
+      setBirthdayVideoPrompt(tempBirthdayVideoPrompt);
       
       setIsSettingsOpen(false);
     } catch (e) {
@@ -762,14 +771,14 @@ function App() {
     }
 
     switch (activeTab) {
-      case 'tablero': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} />;
+      case 'tablero': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} birthdayVideoPrompt={birthdayVideoPrompt} />;
       case 'personal': return <Personnel employees={employees} plazas={plazas} isLoading={!hasLoadedEmployees} />;
       case 'gastos': return <Expenses expenses={expenses} isLoading={!hasLoadedExpenses} loadAll={loadAllExpenses} isSyncing={isSyncingExpenses} onLoadAll={() => { setLoadAllExpenses(true); setIsSyncingExpenses(true); }} />;
       case 'tareas': return <Tasks tasks={tasks} employees={employees} isLoading={!hasLoadedTasks} />;
       case 'pagares': return <PromissoryNotes companyName={companyName} />;
       case 'fallos': return <Fallos currentUser={currentUser} employees={employees} fallos={fallos} isLoading={!hasLoadedFallos} loadAll={loadAllFallos} isSyncing={isSyncingFallos} onLoadAll={() => { setLoadAllFallos(true); setIsSyncingFallos(true); }} />;
       case 'mascota': return <Mascota mascotaUrl={mascotaUrl} mascotaName={mascotaName} onOpenSettings={handleOpenSettings} />;
-      default: return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} />;
+      default: return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} birthdayVideoPrompt={birthdayVideoPrompt} />;
     }
   };
 
@@ -1169,6 +1178,39 @@ Composición centrada, estilo profesional y alegre. Evita el color rosa.`)}
                   className="mt-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center"
                 >
                   <RefreshCw className="w-3 h-3 mr-1" /> Cargar prompt por defecto como ejemplo
+                </button>
+              </div>
+
+              <div className="border-t border-gray-100 my-4 pt-4"></div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+                  <Wand2 className="w-4 h-4 mr-2 text-indigo-600" /> Prompt de Video de Cumpleaños (Google Veo)
+                </label>
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Parámetros disponibles:</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    <code className="text-[10px] text-indigo-600">{"${person.firstName}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.lastName}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.position}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.plaza}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.groupName}"}</code>
+                  </div>
+                </div>
+                <textarea 
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all min-h-[120px]"
+                  placeholder={`Ejemplo:\nGenera un video en bucle de 5 segundos de animación 3D de la mascota celebrando el cumpleaños de \${person.firstName}...`}
+                  value={tempBirthdayVideoPrompt}
+                  onChange={(e) => setTempBirthdayVideoPrompt(e.target.value)}
+                />
+                <button 
+                  type="button"
+                  onClick={() => setTempBirthdayVideoPrompt(`Genera un video en bucle de 5 segundos estilo animación 3D Pixar de ALTA CALIDAD.
+La mascota es un adorable personaje que celebra felizmente con gorro de fiesta el cumpleaños de \${person.firstName} \${person.lastName}.
+La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillante que cae lentamente y globos de colores flotantes en un ambiente festivo y cálido.`)}
+                  className="mt-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" /> Cargar prompt por defecto de video
                 </button>
               </div>
 

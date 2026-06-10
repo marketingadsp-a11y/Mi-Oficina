@@ -79,6 +79,7 @@ export interface AppSettings {
   appStatusColor?: string;
   mobileNavSections?: string[];
   birthdayPrompt?: string;
+  birthdayVideoPrompt?: string;
 }
 
 export interface GeneratedImage {
