@@ -80,6 +80,7 @@ export interface AppSettings {
   mobileNavSections?: string[];
   birthdayPrompt?: string;
   birthdayVideoPrompt?: string;
+  imprentaUrl?: string;
 }
 
 export interface GeneratedImage {

@@ -34,7 +34,8 @@ import {
   FileUp,
   Cloud,
   ExternalLink,
-  Wand2
+  Wand2,
+  Printer
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -47,6 +48,7 @@ import { Mascota } from './components/Mascota';
 import { Login } from './components/Login';
 import { Assistant } from './components/Assistant'; 
 import { Fallos } from './components/Fallos';
+import { Imprenta } from './components/Imprenta';
 
 import { 
   getEmployees, 
@@ -120,6 +122,7 @@ function App() {
   const [mascotaUrl, setMascotaUrl] = useState('');
   const [mascotaName, setMascotaName] = useState('Mascota');
   const [companyName, setCompanyName] = useState('');
+  const [imprentaUrl, setImprentaUrl] = useState('');
   
   const navItems = useMemo(() => [
     { id: 'tablero', label: 'Panel Principal', icon: LayoutDashboard },
@@ -129,12 +132,13 @@ function App() {
     { id: 'pagares', label: 'Entrega Pagarés', icon: FileSignature },
     { id: 'fallos', label: 'Fallos', icon: FileWarning },
     { id: 'mascota', label: `Mi ${mascotaName}`, icon: ImageIcon }, 
+    { id: 'imprenta', label: 'Imprenta', icon: Printer },
   ], [mascotaName]);
   const [googleApiKey, setGoogleApiKey] = useState('');
   const [imgbbApiKey, setImgbbApiKey] = useState('');
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [appStatusColor, setAppStatusColor] = useState('#10B981'); 
-  const [mobileNavSections, setMobileNavSections] = useState<string[]>(['tablero', 'personal', 'gastos', 'tareas', 'fallos']);
+  const [mobileNavSections, setMobileNavSections] = useState<string[]>(['tablero', 'personal', 'gastos', 'tareas', 'fallos', 'imprenta']);
   const [birthdayPrompt, setBirthdayPrompt] = useState<string>('');
   const [birthdayVideoPrompt, setBirthdayVideoPrompt] = useState<string>('');
   const [loadAllExpenses, setLoadAllExpenses] = useState(false);
@@ -146,6 +150,7 @@ function App() {
   const [tempMascotaUrl, setTempMascotaUrl] = useState('');
   const [tempMascotaName, setTempMascotaName] = useState('');
   const [tempCompanyName, setTempCompanyName] = useState('');
+  const [tempImprentaUrl, setTempImprentaUrl] = useState('');
   const [tempGoogleApiKey, setTempGoogleApiKey] = useState('');
   const [tempImgbbApiKey, setTempImgbbApiKey] = useState('');
   const [tempAppVersion, setTempAppVersion] = useState('');
@@ -302,6 +307,7 @@ function App() {
         setImgbbApiKey(settingsData.imgbbApiKey || '');
         setAppVersion(settingsData.appVersion || '1.0.0');
         setAppStatusColor(settingsData.appStatusColor || '#10B981');
+        setImprentaUrl(settingsData.imprentaUrl || '');
       } catch (e) {
         console.error("Error fetching settings on init:", e);
       }
@@ -420,6 +426,9 @@ function App() {
       }
       if (settings.birthdayVideoPrompt) {
         setBirthdayVideoPrompt(settings.birthdayVideoPrompt);
+      }
+      if (settings.imprentaUrl !== undefined) {
+        setImprentaUrl(settings.imprentaUrl);
       }
     }, (err) => handleError(err, 'GET', 'settings/global_config')));
 
@@ -556,6 +565,7 @@ function App() {
     setTempMobileNavSections([...mobileNavSections]);
     setTempBirthdayPrompt(birthdayPrompt);
     setTempBirthdayVideoPrompt(birthdayVideoPrompt);
+    setTempImprentaUrl(imprentaUrl);
     setKeyStatus('idle');
     setIsSettingsOpen(true);
     setUserMenuOpen(false);
@@ -703,7 +713,8 @@ function App() {
         appStatusColor: finalColor,
         mobileNavSections: tempMobileNavSections,
         birthdayPrompt: tempBirthdayPrompt,
-        birthdayVideoPrompt: tempBirthdayVideoPrompt
+        birthdayVideoPrompt: tempBirthdayVideoPrompt,
+        imprentaUrl: tempImprentaUrl
       });
 
       setMascotaUrl(tempMascotaUrl);
@@ -716,6 +727,7 @@ function App() {
       setMobileNavSections(tempMobileNavSections);
       setBirthdayPrompt(tempBirthdayPrompt);
       setBirthdayVideoPrompt(tempBirthdayVideoPrompt);
+      setImprentaUrl(tempImprentaUrl);
       
       setIsSettingsOpen(false);
     } catch (e) {
@@ -779,6 +791,7 @@ function App() {
       case 'pagares': return <PromissoryNotes companyName={companyName} />;
       case 'fallos': return <Fallos currentUser={currentUser} employees={employees} fallos={fallos} isLoading={!hasLoadedFallos} loadAll={loadAllFallos} isSyncing={isSyncingFallos} onLoadAll={() => { setLoadAllFallos(true); setIsSyncingFallos(true); }} />;
       case 'mascota': return <Mascota mascotaUrl={mascotaUrl} mascotaName={mascotaName} onOpenSettings={handleOpenSettings} employees={employees} onSelectBdayEmployee={(empId) => { setSelectedBdayEmployeeId(empId); handleTabChange('tablero'); }} />;
+      case 'imprenta': return <Imprenta imprentaUrl={imprentaUrl} onOpenSettings={handleOpenSettings} />;
       default: return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} birthdayVideoPrompt={birthdayVideoPrompt} selectedBdayEmployeeId={selectedBdayEmployeeId} setSelectedBdayEmployeeId={setSelectedBdayEmployeeId} />;
     }
   };
@@ -1224,6 +1237,20 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
                   className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   value={tempMascotaName}
                   onChange={(e) => setTempMascotaName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Link de la Imprenta</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Enlace externo (URL) del sistema o portal de imprenta para incrustarlo en la nueva pestaña de la Oficina.
+                </p>
+                <input 
+                  type="text" 
+                  placeholder="https://ejemplo.com/recursos-impresion"
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  value={tempImprentaUrl}
+                  onChange={(e) => setTempImprentaUrl(e.target.value)}
                 />
               </div>
 

@@ -381,7 +381,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         appVersion: data.appVersion || '1.0.0',
         appStatusColor: data.appStatusColor || '#10B981',
         birthdayPrompt: data.birthdayPrompt || '',
-        birthdayVideoPrompt: data.birthdayVideoPrompt || ''
+        birthdayVideoPrompt: data.birthdayVideoPrompt || '',
+        imprentaUrl: data.imprentaUrl || ''
       };
     } else {
       return {
@@ -393,7 +394,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         appVersion: '1.0.0',
         appStatusColor: '#10B981',
         birthdayPrompt: '',
-        birthdayVideoPrompt: ''
+        birthdayVideoPrompt: '',
+        imprentaUrl: ''
       };
     }
   } catch (error) {
@@ -407,7 +409,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
       appVersion: '1.0.0',
       appStatusColor: '#10B981',
       birthdayPrompt: '',
-      birthdayVideoPrompt: ''
+      birthdayVideoPrompt: '',
+      imprentaUrl: ''
     };
   }
 };
