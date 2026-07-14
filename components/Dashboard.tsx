@@ -346,8 +346,17 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
                 <Cake className="w-4 h-4 mr-2" /> 
                 {todayBirthdays.some(t => t.id === displayPerson.id) ? "¡Hoy Cumple!" : "Celebración Especial"}
               </div>
-              <h3 className="text-4xl font-extrabold mb-2">
-                {displayPerson.firstName} {displayPerson.lastName}
+              <h3 className="text-4xl font-extrabold mb-2 flex items-center flex-wrap justify-center md:justify-start gap-3">
+                <span>{displayPerson.firstName} {displayPerson.lastName}</span>
+                <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border tracking-wide uppercase ${
+                  (displayPerson.status || 'ACTIVO') === 'ACTIVO' 
+                    ? 'bg-emerald-500/25 border-emerald-400 text-emerald-100' 
+                    : (displayPerson.status || 'ACTIVO') === 'INACTIVO'
+                    ? 'bg-amber-500/25 border-amber-400 text-amber-100'
+                    : 'bg-rose-500/25 border-rose-400 text-rose-100'
+                }`}>
+                  ({displayPerson.status || 'ACTIVO'})
+                </span>
               </h3>
               
               {/* Informative Save Status Badge */}
@@ -660,9 +669,20 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
                           {day}
                         </div>
                         <div className="truncate pr-2">
-                          <p className={`font-medium text-sm truncate ${isToday ? 'text-blue-700' : 'text-gray-800'}`}>
-                            {emp.firstName} {emp.lastName}
-                          </p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className={`font-medium text-sm truncate ${isToday ? 'text-blue-700' : 'text-gray-800'}`}>
+                              {emp.firstName} {emp.lastName}
+                            </p>
+                            <span className={`text-[8px] font-extrabold px-1.5 py-0.2 rounded-full border uppercase shrink-0 ${
+                              (emp.status || 'ACTIVO') === 'ACTIVO' 
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                                : (emp.status || 'ACTIVO') === 'INACTIVO'
+                                ? 'bg-amber-50 border-amber-200 text-amber-700'
+                                : 'bg-rose-50 border-rose-200 text-rose-700'
+                            }`}>
+                              ({emp.status || 'ACTIVO'})
+                            </span>
+                          </div>
                           <p className="text-[10px] text-gray-500 truncate">{emp.position}</p>
                         </div>
                       </div>

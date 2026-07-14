@@ -28,7 +28,8 @@ const INITIAL_FORM_STATE = {
   accessCode: '',
   linkedExecutiveId: '',
   linkedSupervisorId: '',
-  groupName: ''
+  groupName: '',
+  status: 'ACTIVO' as 'ACTIVO' | 'INACTIVO' | 'BAJA'
 };
 
 import { getLocalDateString } from '../lib/dateUtils';
@@ -45,6 +46,7 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
   // Filters State
   const [selectedPlazaFilter, setSelectedPlazaFilter] = useState('');
   const [selectedSupervisorFilter, setSelectedSupervisorFilter] = useState('');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState('');
   
   const [newPlazaName, setNewPlazaName] = useState('');
   
@@ -192,9 +194,12 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
       // 4. Filter by Supervisor Dropdown
       const matchesSupervisor = selectedSupervisorFilter ? e.linkedSupervisorId === selectedSupervisorFilter : true;
 
-      return matchesCategory && matchesSearch && matchesPlaza && matchesSupervisor;
+      // 5. Filter by Status Dropdown
+      const matchesStatus = selectedStatusFilter ? (e.status || 'ACTIVO') === selectedStatusFilter : true;
+
+      return matchesCategory && matchesSearch && matchesPlaza && matchesSupervisor && matchesStatus;
     });
-  }, [employees, activeCategory, searchTerm, selectedPlazaFilter, selectedSupervisorFilter]);
+  }, [employees, activeCategory, searchTerm, selectedPlazaFilter, selectedSupervisorFilter, selectedStatusFilter]);
 
   const handleOpenModal = (employee?: Employee) => {
     if (employee) {
@@ -265,7 +270,8 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
         phone: formData.phone || '',
         birthDate: formData.birthDate || '',
         hireDate: formData.hireDate || '',
-        groupName: formData.groupName || ''
+        groupName: formData.groupName || '',
+        status: formData.status || 'ACTIVO'
       };
 
       if (editingId) {
@@ -614,11 +620,23 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
               <option key={sup.id} value={sup.id}>{sup.supervisionName || `${sup.firstName} ${sup.lastName}`}</option>
             ))}
           </select>
+
+          {/* Status Filter */}
+          <select 
+            className="flex-1 md:w-40 p-2.5 border rounded-lg text-sm bg-white text-gray-700 focus:ring-2 focus:ring-blue-200 outline-none cursor-pointer font-medium"
+            value={selectedStatusFilter}
+            onChange={(e) => setSelectedStatusFilter(e.target.value)}
+          >
+            <option value="">Todos los Estados</option>
+            <option value="ACTIVO">🟢 ACTIVO</option>
+            <option value="INACTIVO">🟡 INACTIVO</option>
+            <option value="BAJA">🔴 BAJA</option>
+          </select>
           
           {/* Clear Filters Button */}
-          {(selectedPlazaFilter || selectedSupervisorFilter) && (
+          {(selectedPlazaFilter || selectedSupervisorFilter || selectedStatusFilter) && (
              <button 
-               onClick={() => { setSelectedPlazaFilter(''); setSelectedSupervisorFilter(''); }}
+               onClick={() => { setSelectedPlazaFilter(''); setSelectedSupervisorFilter(''); setSelectedStatusFilter(''); }}
                className="p-2.5 text-red-500 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-all"
                title="Limpiar filtros"
              >
@@ -704,8 +722,19 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
                         {(employee.firstName || '?').charAt(0)}{(employee.lastName || '?').charAt(0)}
                       </div>
                       <div className="ml-3">
-                        <h3 className="font-bold text-gray-800 text-lg leading-tight">
-                          {employee.firstName || employee.lastName ? `${employee.firstName} ${employee.lastName}` : <span className="text-gray-400 italic">Sin Nombre</span>}
+                        <h3 className="font-bold text-gray-800 text-lg leading-tight flex items-center flex-wrap gap-1.5">
+                          <span>
+                            {employee.firstName || employee.lastName ? `${employee.firstName} ${employee.lastName}` : <span className="text-gray-400 italic">Sin Nombre</span>}
+                          </span>
+                          <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full border ${
+                            (employee.status || 'ACTIVO') === 'ACTIVO' 
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                              : (employee.status || 'ACTIVO') === 'INACTIVO'
+                              ? 'bg-amber-50 border-amber-200 text-amber-700'
+                              : 'bg-rose-50 border-rose-200 text-rose-700'
+                          }`}>
+                            ({employee.status || 'ACTIVO'})
+                          </span>
                         </h3>
                         <span className="text-sm text-gray-500 font-medium">{employee.position || 'Sin Cargo'}</span>
                       </div>
@@ -804,7 +833,18 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
                               {(employee.firstName || '?').charAt(0)}{(employee.lastName || '?').charAt(0)}
                             </div>
                             <div>
-                              <p className="font-bold text-gray-800 text-sm">{employee.firstName} {employee.lastName}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-gray-800 text-sm">{employee.firstName} {employee.lastName}</p>
+                                <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border ${
+                                  (employee.status || 'ACTIVO') === 'ACTIVO' 
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                                    : (employee.status || 'ACTIVO') === 'INACTIVO'
+                                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                                    : 'bg-rose-50 border-rose-200 text-rose-700'
+                                }`}>
+                                  ({employee.status || 'ACTIVO'})
+                                </span>
+                              </div>
                               {employee.groupName && <span className="text-[10px] bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded-full">{employee.groupName}</span>}
                             </div>
                           </div>
@@ -1346,6 +1386,19 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
                   <label className="text-xs text-gray-500 mb-1 block">Fecha Contratación</label>
                   <input type="date" className="w-full border p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.hireDate} onChange={e => setFormData({...formData, hireDate: e.target.value})} />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block font-bold text-gray-700">Estado del Empleado</label>
+                <select 
+                  className="w-full border p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-semibold"
+                  value={formData.status || 'ACTIVO'}
+                  onChange={e => setFormData({...formData, status: e.target.value as any})}
+                >
+                  <option value="ACTIVO">🟢 ACTIVO</option>
+                  <option value="INACTIVO">🟡 INACTIVO</option>
+                  <option value="BAJA">🔴 BAJA</option>
+                </select>
               </div>
               
               <div className="flex justify-end gap-3 pt-6 border-t mt-4">

@@ -35,7 +35,8 @@ import {
   Cloud,
   ExternalLink,
   Wand2,
-  Printer
+  Printer,
+  Car
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -49,6 +50,7 @@ import { Login } from './components/Login';
 import { Assistant } from './components/Assistant'; 
 import { Fallos } from './components/Fallos';
 import { Imprenta } from './components/Imprenta';
+import { Vehicles } from './components/Vehicles';
 
 import { 
   getEmployees, 
@@ -67,10 +69,13 @@ import {
   subscribeToPlazas,
   getBase64Fallos,
   deleteBase64Fallos,
-  importFallos
+  importFallos,
+  subscribeToVehicles,
+  subscribeToVehicleAssignments,
+  subscribeToVehicleEvents
 } from './services/dbService';
 import { validateApiKey } from './services/geminiService';
-import { Employee, Expense, Task, Fallo, Plaza } from './types';
+import { Employee, Expense, Task, Fallo, Plaza, Vehicle, VehicleAssignment, VehicleEvent } from './types';
 
 
 function App() {
@@ -127,6 +132,7 @@ function App() {
   const navItems = useMemo(() => [
     { id: 'tablero', label: 'Panel Principal', icon: LayoutDashboard },
     { id: 'personal', label: 'Personal', icon: Users },
+    { id: 'autos', label: 'Autos Oficiales', icon: Car },
     { id: 'gastos', label: 'Gastos', icon: DollarSign },
     { id: 'tareas', label: 'Tareas', icon: CheckSquare },
     { id: 'pagares', label: 'Entrega Pagarés', icon: FileSignature },
@@ -138,7 +144,7 @@ function App() {
   const [imgbbApiKey, setImgbbApiKey] = useState('');
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [appStatusColor, setAppStatusColor] = useState('#10B981'); 
-  const [mobileNavSections, setMobileNavSections] = useState<string[]>(['tablero', 'personal', 'gastos', 'tareas', 'fallos', 'imprenta']);
+  const [mobileNavSections, setMobileNavSections] = useState<string[]>(['tablero', 'personal', 'autos', 'gastos', 'tareas', 'fallos', 'imprenta']);
   const [birthdayPrompt, setBirthdayPrompt] = useState<string>('');
   const [birthdayVideoPrompt, setBirthdayVideoPrompt] = useState<string>('');
   const [loadAllExpenses, setLoadAllExpenses] = useState(false);
@@ -185,6 +191,9 @@ function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [fallos, setFallos] = useState<Fallo[]>([]);
   const [plazas, setPlazas] = useState<Plaza[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicleAssignments, setVehicleAssignments] = useState<VehicleAssignment[]>([]);
+  const [vehicleEvents, setVehicleEvents] = useState<VehicleEvent[]>([]);
   
   // Loading flags for lazy loading
   const [hasLoadedEmployees, setHasLoadedEmployees] = useState(false);
@@ -192,6 +201,7 @@ function App() {
   const [hasLoadedDashboard, setHasLoadedDashboard] = useState(false);
   const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
   const [hasLoadedFallos, setHasLoadedFallos] = useState(false);
+  const [hasLoadedVehicles, setHasLoadedVehicles] = useState(false);
 
   const handleFirestoreError = (error: any, operation: string, path: string) => {
     const errInfo = {
@@ -515,6 +525,21 @@ function App() {
         setHasLoadedDashboard(true);
       }, (err) => handleError(err, 'LIST', 'expenses')));
     }
+    
+    if (activeTab === 'autos') {
+      unsubscribers.push(subscribeToVehicles((data) => {
+        setVehicles(data);
+        setHasLoadedVehicles(true);
+      }, (err) => handleError(err, 'LIST', 'vehicles')));
+
+      unsubscribers.push(subscribeToVehicleAssignments((data) => {
+        setVehicleAssignments(data);
+      }, (err) => handleError(err, 'LIST', 'vehicle_assignments')));
+
+      unsubscribers.push(subscribeToVehicleEvents((data) => {
+        setVehicleEvents(data);
+      }, (err) => handleError(err, 'LIST', 'vehicle_events')));
+    }
     // Note: All Expenses and All Fallos are now handled by the dedicated background useEffect
     // which also handles the "Load All" toggle.
 
@@ -759,6 +784,7 @@ function App() {
     if (activeTab === 'tablero') isTabReady = isDashboardReady;
     else if (activeTab === 'personal') isTabReady = isPersonnelReady;
     else if (activeTab === 'tareas') isTabReady = isTasksReady;
+    else if (activeTab === 'autos') isTabReady = hasLoadedVehicles && hasLoadedEmployees;
     // Gastos and Fallos handle their own loading state internally via props
     // so we don't block the whole app while they sync heavy image data
 
@@ -786,6 +812,7 @@ function App() {
     switch (activeTab) {
       case 'tablero': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} birthdayVideoPrompt={birthdayVideoPrompt} selectedBdayEmployeeId={selectedBdayEmployeeId} setSelectedBdayEmployeeId={setSelectedBdayEmployeeId} />;
       case 'personal': return <Personnel employees={employees} plazas={plazas} isLoading={!hasLoadedEmployees} />;
+      case 'autos': return <Vehicles employees={employees} vehicles={vehicles} assignments={vehicleAssignments} events={vehicleEvents} isLoading={!hasLoadedVehicles} companyName={companyName} />;
       case 'gastos': return <Expenses expenses={expenses} isLoading={!hasLoadedExpenses} loadAll={loadAllExpenses} isSyncing={isSyncingExpenses} onLoadAll={() => { setLoadAllExpenses(true); setIsSyncingExpenses(true); }} />;
       case 'tareas': return <Tasks tasks={tasks} employees={employees} isLoading={!hasLoadedTasks} />;
       case 'pagares': return <PromissoryNotes companyName={companyName} />;

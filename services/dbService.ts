@@ -587,3 +587,106 @@ export const addFallo = async (fallo: Omit<Fallo, 'id'>) => {
 export const deleteFallo = async (id: string) => {
   return await deleteDoc(doc(db, "fallos", id));
 };
+
+// --- VEHICLES MANAGEMENT ---
+
+export interface Vehicle {
+  id: string;
+  brand: string;
+  model: string;
+  year: number;
+  plates: string;
+  serialNumber?: string;
+  insurancePolicy?: string;
+  insuranceExpiry?: string;
+  currentEmployeeId?: string; // ID of Executive or Supervisor currently assigned
+  status: 'Activo' | 'En Taller' | 'Inactivo';
+  createdAt: string;
+}
+
+export interface VehicleAssignment {
+  id: string;
+  vehicleId: string;
+  employeeId: string;
+  employeeName: string;
+  assignedAt: string;
+  returnedAt?: string;
+  notes?: string;
+}
+
+export interface VehicleEvent {
+  id: string;
+  vehicleId: string;
+  type: 'Refrendo' | 'Servicio' | 'Seguro' | 'Reparación' | 'Otro';
+  date: string; // YYYY-MM-DD
+  amount: number;
+  description: string;
+  status: 'Pagado' | 'Pendiente' | 'N/A';
+  createdAt: string;
+}
+
+export const subscribeToVehicles = (callback: (vehicles: Vehicle[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "vehicles"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snapshot) => {
+    const vehicles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
+    callback(vehicles);
+  }, onError);
+};
+
+export const subscribeToVehicleAssignments = (callback: (assignments: VehicleAssignment[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "vehicle_assignments"), orderBy("assignedAt", "desc"));
+  return onSnapshot(q, (snapshot) => {
+    const assignments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleAssignment));
+    callback(assignments);
+  }, onError);
+};
+
+export const subscribeToVehicleEvents = (callback: (events: VehicleEvent[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "vehicle_events"), orderBy("date", "desc"));
+  return onSnapshot(q, (snapshot) => {
+    const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleEvent));
+    callback(events);
+  }, onError);
+};
+
+const cleanUndefined = (obj: any): any => {
+  const result: any = {};
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] !== undefined) {
+      result[key] = obj[key];
+    }
+  });
+  return result;
+};
+
+export const addVehicle = async (vehicle: Omit<Vehicle, 'id' | 'createdAt'>) => {
+  return await addDoc(collection(db, "vehicles"), cleanUndefined({
+    ...vehicle,
+    createdAt: new Date().toISOString()
+  }));
+};
+
+export const updateVehicle = async (id: string, vehicle: Partial<Vehicle>) => {
+  const vehicleRef = doc(db, "vehicles", id);
+  const { id: _, ...data } = vehicle as any;
+  return await updateDoc(vehicleRef, cleanUndefined(data));
+};
+
+export const deleteVehicle = async (id: string) => {
+  return await deleteDoc(doc(db, "vehicles", id));
+};
+
+export const addVehicleAssignment = async (assignment: Omit<VehicleAssignment, 'id'>) => {
+  return await addDoc(collection(db, "vehicle_assignments"), assignment);
+};
+
+export const addVehicleEvent = async (event: Omit<VehicleEvent, 'id' | 'createdAt'>) => {
+  return await addDoc(collection(db, "vehicle_events"), {
+    ...event,
+    createdAt: new Date().toISOString()
+  });
+};
+
+export const deleteVehicleEvent = async (id: string) => {
+  return await deleteDoc(doc(db, "vehicle_events", id));
+};

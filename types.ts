@@ -32,6 +32,7 @@ export interface Employee {
   linkedSupervisorId?: string; // Para Promotoras (ID de la Supervisora)
   groupName?: string; // Para Promotoras (Nombre del Grupo)
   supervisionName?: string; // Para Supervisoras (Nombre de la Supervisión)
+  status?: 'ACTIVO' | 'INACTIVO' | 'BAJA';
 }
 
 export interface Expense {
@@ -98,5 +99,40 @@ export interface Fallo {
   promotoraName?: string; // Name for easier display
   groupName?: string; // Group name (auto-filled from Promotora or manual)
   date: string;
+  createdAt: string;
+}
+
+export interface Vehicle {
+  id: string;
+  brand: string;
+  model: string;
+  year: number;
+  plates: string;
+  serialNumber?: string;
+  insurancePolicy?: string;
+  insuranceExpiry?: string;
+  currentEmployeeId?: string; // ID of Executive or Supervisor currently assigned
+  status: 'Activo' | 'En Taller' | 'Inactivo';
+  createdAt: string;
+}
+
+export interface VehicleAssignment {
+  id: string;
+  vehicleId: string;
+  employeeId: string;
+  employeeName: string;
+  assignedAt: string;
+  returnedAt?: string;
+  notes?: string;
+}
+
+export interface VehicleEvent {
+  id: string;
+  vehicleId: string;
+  type: 'Refrendo' | 'Servicio' | 'Seguro' | 'Reparación' | 'Otro';
+  date: string; // YYYY-MM-DD
+  amount: number;
+  description: string;
+  status: 'Pagado' | 'Pendiente' | 'N/A';
   createdAt: string;
 }
