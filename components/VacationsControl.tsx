@@ -13,7 +13,11 @@ import {
   FileText, 
   ArrowRight,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  Wallet
 } from 'lucide-react';
 import { Employee, VacationRequest } from '../types';
 import { addVacationRequest, updateVacationRequest, deleteVacationRequest } from '../services/dbService';
@@ -33,6 +37,19 @@ const calculateReturnDate = (endDateStr: string): string => {
   } catch (error) {
     return 'N/R';
   }
+};
+
+const isReturnDateInPast = (endDateStr: string): boolean => {
+  const returnDateStr = calculateReturnDate(endDateStr);
+  if (returnDateStr === 'N/R') return false;
+  
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${yyyy}-${mm}-${dd}`;
+  
+  return returnDateStr < todayStr;
 };
 
 interface VacationsControlProps {
@@ -56,10 +73,58 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
   const [requestedDays, setRequestedDays] = useState<number>(1);
   const [requestType, setRequestType] = useState<'disponibles' | 'descuento'>('disponibles');
   const [notes, setNotes] = useState('');
+  const [authorizedBy, setAuthorizedBy] = useState('Admin');
 
   // Requests List Filters
   const [statusFilter, setStatusFilter] = useState<'TODOS' | 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'>('TODOS');
   const [typeFilter, setTypeFilter] = useState<'TODOS' | 'disponibles' | 'descuento'>('TODOS');
+  const [isPastRequestsOpen, setIsPastRequestsOpen] = useState(false);
+  const [daysPerYear, setDaysPerYear] = useState<number>(() => {
+    const saved = localStorage.getItem('vacationDaysPerYear');
+    return saved ? parseInt(saved, 10) : 12;
+  });
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    confirmBg?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    confirmText: 'Aceptar',
+    confirmBg: 'bg-indigo-600 hover:bg-indigo-700'
+  });
+
+  useEffect(() => {
+    const handleChanged = () => {
+      const saved = localStorage.getItem('vacationDaysPerYear');
+      if (saved) {
+        setDaysPerYear(parseInt(saved, 10));
+      }
+    };
+    window.addEventListener('vacationDaysPerYearChanged', handleChanged);
+    return () => {
+      window.removeEventListener('vacationDaysPerYearChanged', handleChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isModalOpen) {
+      setSelectedEmpId('');
+      setEmpSearchQuery('');
+      setStartDate('');
+      setRequestedDays(3); // In the picture it has 3
+      setRequestType('disponibles');
+      setNotes('');
+      setAuthorizedBy(currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'Admin');
+      setError('');
+      setSuccess('');
+    }
+  }, [isModalOpen, currentUser]);
 
   // Weekly Calendar States & Handlers
   const DAY_NAMES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -154,8 +219,8 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
       // Calculate completed years
       const yearsOfService = diffDays >= 0 ? Math.floor(diffDays / 365.25) : 0;
       
-      // 1 year complete = 12 days automatically, 2 years = 24 days etc.
-      const totalEarned = yearsOfService >= 1 ? yearsOfService * 12 : 0;
+      // 1 year complete = daysPerYear days automatically, 2 years = daysPerYear * 2 etc.
+      const totalEarned = yearsOfService >= 1 ? yearsOfService * daysPerYear : 0;
       
       // Filter approved requests of type 'disponibles' (subtracted days)
       const empRequests = vacationRequests.filter(
@@ -271,6 +336,22 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
     });
   }, [vacationRequests, statusFilter, typeFilter]);
 
+  // Split filtered requests into active (current/future) and past based on returnDate
+  const { activeRequests, pastRequests } = useMemo(() => {
+    const active: VacationRequest[] = [];
+    const past: VacationRequest[] = [];
+    
+    filteredRequests.forEach(req => {
+      if (isReturnDateInPast(req.endDate)) {
+        past.push(req);
+      } else {
+        active.push(req);
+      }
+    });
+    
+    return { activeRequests: active, pastRequests: past };
+  }, [filteredRequests]);
+
   // generalStats removed as weekly calendar replaces the stats row
 
   // Submit Request Action
@@ -312,18 +393,20 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
         totalDays: requestedDays,
         type: requestType,
         status: 'PENDIENTE',
-        notes: notes.trim() || undefined,
-        registeredBy: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'Administrador'
+        notes: notes.trim() || "",
+        registeredBy: authorizedBy.trim() || 'Admin'
       });
 
       setSuccess('Solicitud registrada con éxito como PENDIENTE.');
       
       // Reset form
       setSelectedEmpId('');
+      setEmpSearchQuery('');
       setStartDate('');
-      setRequestedDays(1);
+      setRequestedDays(3);
       setRequestType('disponibles');
       setNotes('');
+      setAuthorizedBy(currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'Admin');
       setTimeout(() => {
         setIsModalOpen(false);
         setSuccess('');
@@ -337,35 +420,52 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
   };
 
   // Change request status action
-  const handleUpdateStatus = async (id: string, newStatus: 'APROBADA' | 'RECHAZADA') => {
-    if (!window.confirm(`¿Estás seguro de cambiar el estado de la solicitud a ${newStatus}?`)) return;
-    try {
-      await updateVacationRequest(id, { status: newStatus });
-    } catch (err) {
-      console.error(err);
-      alert('Error al actualizar el estado de la solicitud.');
-    }
+  const handleUpdateStatus = (id: string, newStatus: 'APROBADA' | 'RECHAZADA') => {
+    const isApprove = newStatus === 'APROBADA';
+    setConfirmModal({
+      isOpen: true,
+      title: isApprove ? 'Aprobar Solicitud' : 'Rechazar Solicitud',
+      message: `¿Estás seguro de cambiar el estado de la solicitud a ${newStatus}?`,
+      confirmText: isApprove ? 'Sí, Aprobar' : 'Sí, Rechazar',
+      confirmBg: isApprove ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700',
+      onConfirm: async () => {
+        try {
+          await updateVacationRequest(id, { status: newStatus });
+        } catch (err) {
+          console.error(err);
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   // Delete request action
-  const handleDeleteRequest = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de eliminar de forma permanente esta solicitud? Esta acción no se puede deshacer.')) return;
-    try {
-      await deleteVacationRequest(id);
-    } catch (err) {
-      console.error(err);
-      alert('Error al eliminar la solicitud.');
-    }
+  const handleDeleteRequest = (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Eliminar Registro',
+      message: '¿Estás seguro de eliminar de forma permanente esta solicitud? Esta acción no se puede deshacer.',
+      confirmText: 'Sí, Eliminar',
+      confirmBg: 'bg-red-600 hover:bg-red-700',
+      onConfirm: async () => {
+        try {
+          await deleteVacationRequest(id);
+        } catch (err) {
+          console.error(err);
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDIENTE':
-        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">⏳ PENDIENTE</span>;
+        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">PENDIENTE</span>;
       case 'APROBADA':
-        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800 border border-green-200">✅ APROBADA</span>;
+        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800 border border-green-200">APROBADA</span>;
       case 'RECHAZADA':
-        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800 border border-red-200">❌ RECHAZADA</span>;
+        return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-red-100 text-red-800 border border-red-200">RECHAZADA</span>;
       default:
         return <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-gray-100 text-gray-800 border border-gray-200">{status}</span>;
     }
@@ -455,8 +555,8 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
                           {req.employeeName}
                         </span>
                         <div className="flex items-center justify-between mt-0.5 text-[8px] font-medium opacity-80">
-                          <span>{req.type === 'disponibles' ? '🌴 Vacaciones' : '💸 Descuento'}</span>
-                          <span>{req.status === 'PENDIENTE' ? '⏳ Pend.' : '✅ Aprob.'}</span>
+                          <span>{req.type === 'disponibles' ? 'Vacaciones' : 'Descuento'}</span>
+                          <span>{req.status === 'PENDIENTE' ? 'Pend.' : 'Aprob.'}</span>
                         </div>
                       </div>
                     ))
@@ -488,9 +588,9 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
               onChange={(e) => setStatusFilter(e.target.value as any)}
             >
               <option value="TODOS">Todos los Estados</option>
-              <option value="PENDIENTE">⏳ Pendientes</option>
-              <option value="APROBADA">✅ Aprobadas</option>
-              <option value="RECHAZADA">❌ Rechazadas</option>
+              <option value="PENDIENTE">Pendientes</option>
+              <option value="APROBADA">Aprobadas</option>
+              <option value="RECHAZADA">Rechazadas</option>
             </select>
 
             <select
@@ -499,8 +599,8 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
               onChange={(e) => setTypeFilter(e.target.value as any)}
             >
               <option value="TODOS">Todos los Modos</option>
-              <option value="disponibles">🌴 Por Días Disponibles</option>
-              <option value="descuento">💸 Descuento de Nómina</option>
+              <option value="disponibles">Por Días Disponibles</option>
+              <option value="descuento">Descuento de Nómina</option>
             </select>
 
             <button 
@@ -517,7 +617,7 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
 
         {/* History Table */}
         <div className="flex-1 overflow-auto border border-gray-100 rounded-xl">
-          {filteredRequests.length > 0 ? (
+          {activeRequests.length > 0 ? (
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider border-b border-gray-100">
@@ -530,7 +630,7 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
-                {filteredRequests.map((req) => (
+                {activeRequests.map((req) => (
                   <tr key={req.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="p-3">
                       <div>
@@ -544,7 +644,7 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
                         <span className={`text-[10px] font-bold ${
                           req.type === 'disponibles' ? 'text-indigo-600' : 'text-emerald-600'
                         }`}>
-                          {req.type === 'disponibles' ? '🌴 Días Disponibles' : '💸 Descuento Nómina'}
+                          {req.type === 'disponibles' ? 'Días Disponibles' : 'Descuento Nómina'}
                         </span>
                       </div>
                     </td>
@@ -595,256 +695,442 @@ export const VacationsControl: React.FC<VacationsControlProps> = ({ employees, v
             </table>
           ) : (
             <div className="text-center py-20 text-gray-400 flex flex-col items-center justify-center gap-2">
-              No se encontraron solicitudes registradas.
+              No se encontraron solicitudes activas registradas.
             </div>
           )}
         </div>
       </div>
 
-      {/* New Request Modal (WITHOUT ICONS as requested) */}
+      {/* Historial de Solicitudes Anteriores */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <button
+          onClick={() => setIsPastRequestsOpen(!isPastRequestsOpen)}
+          className="w-full p-5 flex items-center justify-between text-left hover:bg-gray-50/50 transition-colors focus:outline-none"
+        >
+          <div>
+            <h3 className="font-extrabold text-gray-800 text-base">Historial de Solicitudes Anteriores</h3>
+            <p className="text-xs text-gray-500">Solicitudes cuya fecha de regreso ya ha pasado ({pastRequests.length} registradas)</p>
+          </div>
+          <div className="p-2 bg-gray-50 rounded-xl border border-gray-100 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-100 transition-all">
+            {isPastRequestsOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </div>
+        </button>
+
+        {isPastRequestsOpen && (
+          <div className="p-5 border-t border-gray-50 bg-gray-50/10">
+            <div className="overflow-auto border border-gray-100 rounded-xl bg-white">
+              {pastRequests.length > 0 ? (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider border-b border-gray-100">
+                      <th className="p-3">Empleado</th>
+                      <th className="p-3">Fecha Permiso</th>
+                      <th className="p-3">Fecha de Regreso</th>
+                      <th className="p-3 text-center">Días</th>
+                      <th className="p-3">Autorizado por:</th>
+                      <th className="p-3 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-gray-700">
+                    {pastRequests.map((req) => (
+                      <tr key={req.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="p-3">
+                          <div>
+                            <p className="font-extrabold text-gray-900">{req.employeeName}</p>
+                            <p className="text-[10px] text-gray-400">{req.employeeCategory}</p>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-700">{req.startDate} al {req.endDate}</span>
+                            <span className={`text-[10px] font-bold ${
+                              req.type === 'disponibles' ? 'text-indigo-600' : 'text-emerald-600'
+                            }`}>
+                              {req.type === 'disponibles' ? 'Días Disponibles' : 'Descuento Nómina'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="font-semibold text-gray-800">{calculateReturnDate(req.endDate)}</span>
+                        </td>
+                        <td className="p-3 text-center font-black text-gray-800">
+                          {req.totalDays}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-col items-start gap-1">
+                            {getStatusBadge(req.status)}
+                            <span className="text-[10px] text-gray-400 font-bold">Por: {req.registeredBy || 'Admin'}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {req.status === 'PENDIENTE' && (
+                              <>
+                                <button
+                                  onClick={() => handleUpdateStatus(req.id, 'APROBADA')}
+                                  className="p-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors border border-green-200"
+                                  title="Aprobar Solicitud"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateStatus(req.id, 'RECHAZADA')}
+                                  className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors border border-red-200"
+                                  title="Rechazar Solicitud"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleDeleteRequest(req.id)}
+                              className="p-1.5 bg-gray-50 text-gray-500 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors border border-gray-200 hover:border-red-200"
+                              title="Eliminar Registro"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-10 text-gray-400 flex flex-col items-center justify-center gap-2">
+                  No se encontraron solicitudes anteriores.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* New Request Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl relative border border-gray-100 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl relative border border-slate-100 flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             
-            {/* Header (No icons) */}
-            <div className="flex justify-between items-center pb-4 border-b">
-              <h3 className="text-lg font-extrabold text-gray-900">
-                Registrar Solicitud de Vacaciones
-              </h3>
+            {/* Header */}
+            <div className="flex gap-3 items-start p-6 bg-slate-50 border-b border-slate-200/60 rounded-t-2xl">
+              <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-black text-slate-900 leading-tight">
+                  Registrar Permiso de Personal
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Completa los datos para registrar una ausencia o período vacacional para el empleado seleccionado.
+                </p>
+              </div>
               <button 
                 onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+                className="text-gray-400 hover:text-gray-600 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4 pt-4 overflow-y-auto flex-1 pr-1 no-scrollbar">
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-medium">
-                  {error}
-                </div>
-              )}
-              {success && (
-                <div className="p-3 bg-green-50 border border-green-100 rounded-xl text-green-600 text-xs font-medium">
-                  {success}
-                </div>
-              )}
-
-              {/* Autocomplete Collaborator Selection */}
-              <div className="relative">
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
-                  Colaborador (Buscar por nombre)
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Escribe el nombre del colaborador..."
-                    className="w-full border border-gray-200 rounded-xl p-3 text-sm bg-white text-gray-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 outline-none font-medium"
-                    value={empSearchQuery}
-                    onChange={(e) => {
-                      setEmpSearchQuery(e.target.value);
-                      setIsEmpDropdownOpen(true);
-                      setSelectedEmpId(''); // Clear selection while typing
-                    }}
-                    onFocus={() => setIsEmpDropdownOpen(true)}
-                  />
-                  {selectedEmpId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedEmpId('');
-                        setEmpSearchQuery('');
-                      }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 font-bold text-xs px-2.5 py-1 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      Cambiar
-                    </button>
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto no-scrollbar flex flex-col min-h-0">
+              {/* Main Grid: Left inputs, Right summary */}
+              <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 bg-slate-50/50 overflow-y-auto no-scrollbar">
+                
+                {/* Left Column (Inputs) */}
+                <div className="lg:col-span-7 space-y-6">
+                  {error && (
+                    <div className="p-3.5 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-semibold">
+                      {error}
+                    </div>
                   )}
-                </div>
-
-                {/* Suggestions List Box */}
-                {isEmpDropdownOpen && (
-                  <div className="absolute z-50 left-0 right-0 mt-1 max-h-52 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl divide-y divide-gray-100">
-                    {(() => {
-                      const filtered = employees
-                        .filter(e => e.status !== 'BAJA')
-                        .filter(e => {
-                          const fullName = `${e.firstName} ${e.lastName}`.toLowerCase();
-                          return fullName.includes(empSearchQuery.toLowerCase());
-                        });
-
-                      if (filtered.length > 0) {
-                        return filtered.map(e => (
-                          <button
-                            key={e.id}
-                            type="button"
-                            className="w-full text-left px-4 py-2.5 text-xs hover:bg-indigo-50/50 transition-colors flex flex-col"
-                            onClick={() => {
-                              setSelectedEmpId(e.id);
-                              setEmpSearchQuery(`${e.firstName} ${e.lastName}`);
-                              setIsEmpDropdownOpen(false);
-                              setError('');
-                            }}
-                          >
-                            <span className="font-extrabold text-gray-800">{e.firstName} {e.lastName}</span>
-                            <span className="text-[10px] text-gray-400 font-medium">{e.category} • {e.position || 'Sin puesto'}</span>
-                          </button>
-                        ));
-                      } else {
-                        return (
-                          <div className="px-4 py-3 text-xs text-gray-400 italic text-center">
-                            No se encontraron colaboradores activos
-                          </div>
-                        );
-                      }
-                    })()}
-                  </div>
-                )}
-
-                {/* Click outside backdrop container */}
-                {isEmpDropdownOpen && (
-                  <div 
-                    className="fixed inset-0 z-40 bg-transparent pointer-events-auto"
-                    onClick={() => setIsEmpDropdownOpen(false)}
-                  />
-                )}
-              </div>
-
-              {/* Show selected employee details & stats (No icons) */}
-              {activeEmployee && activeEmpBalance && (
-                <div className="p-2.5 bg-indigo-50/40 rounded-xl border border-indigo-100/60">
-                  <div className="flex flex-wrap items-center justify-center gap-x-2 text-[11px] text-indigo-900 font-medium">
-                    <span className="text-indigo-950 font-bold">{activeEmployee.hireDate || 'N/R'}</span>
-                    <span className="text-indigo-300">/</span>
-                    <span>{activeEmpBalance.text} serv.</span>
-                    <span className="text-indigo-300">/</span>
-                    <span className="bg-indigo-100/60 px-2 py-0.5 rounded-md font-black text-indigo-700">
-                      {activeEmpBalance.balance} d. disp.
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Vacation Mode Selector (No icons) */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
-                  Modo de Vacaciones
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setRequestType('disponibles')}
-                    className={`p-3 rounded-xl border-2 text-left transition-all ${
-                      requestType === 'disponibles'
-                        ? 'border-indigo-600 bg-indigo-50/30'
-                        : 'border-gray-200 bg-white hover:bg-gray-50'
-                    }`}
-                  >
-                    <div>
-                      <span className="block text-xs font-extrabold text-gray-800">Días Disponibles</span>
-                      <span className="block text-[10px] text-gray-400 font-medium">Se restan de su saldo acumulado</span>
+                  {success && (
+                    <div className="p-3.5 bg-green-50 border border-green-100 rounded-xl text-green-600 text-xs font-semibold">
+                      {success}
                     </div>
-                  </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => setRequestType('descuento')}
-                    className={`p-3 rounded-xl border-2 text-left transition-all ${
-                      requestType === 'descuento'
-                        ? 'border-emerald-600 bg-emerald-50/20'
-                        : 'border-gray-200 bg-white hover:bg-gray-50'
-                    }`}
-                  >
-                    <div>
-                      <span className="block text-xs font-extrabold text-gray-800">Descuento de Nómina</span>
-                      <span className="block text-[10px] text-gray-400 font-medium">Días sin goce de sueldo cobrados</span>
+                  {/* 1. SELECCIONAR EMPLEADO */}
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-black text-slate-400 tracking-wider uppercase">
+                      1. SELECCIONAR EMPLEADO
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Escribe el nombre del colaborador..."
+                        className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-4 pr-10 text-sm font-bold text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all uppercase"
+                        value={empSearchQuery}
+                        onChange={(e) => {
+                          setEmpSearchQuery(e.target.value);
+                          setIsEmpDropdownOpen(true);
+                          setSelectedEmpId(''); // Clear selection while typing
+                        }}
+                        onFocus={() => setIsEmpDropdownOpen(true)}
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ChevronsUpDown className="w-4 h-4" />
+                      </div>
+
+                      {/* Suggestions List Box */}
+                      {isEmpDropdownOpen && (
+                        <div className="absolute z-50 left-0 right-0 mt-1.5 max-h-52 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100 animate-in fade-in-50 duration-100">
+                          {(() => {
+                            const filtered = employees
+                              .filter(e => e.status !== 'BAJA')
+                              .filter(e => {
+                                const fullName = `${e.firstName} ${e.lastName}`.toLowerCase();
+                                return fullName.includes(empSearchQuery.toLowerCase());
+                              });
+
+                            if (filtered.length > 0) {
+                              return filtered.map(e => (
+                                <button
+                                  key={e.id}
+                                  type="button"
+                                  className="w-full text-left px-4 py-3 text-xs hover:bg-indigo-50/50 transition-colors flex flex-col"
+                                  onClick={() => {
+                                    setSelectedEmpId(e.id);
+                                    setEmpSearchQuery(`${e.firstName} ${e.lastName}`);
+                                    setIsEmpDropdownOpen(false);
+                                    setError('');
+                                  }}
+                                >
+                                  <span className="font-extrabold text-slate-800">{e.firstName} {e.lastName}</span>
+                                  <span className="text-[10px] text-slate-400 font-semibold">{e.category} • {e.position || 'Sin puesto'}</span>
+                                </button>
+                              ));
+                            } else {
+                              return (
+                                <div className="px-4 py-3 text-xs text-slate-400 italic text-center">
+                                  No se encontraron colaboradores activos
+                                </div>
+                              );
+                            }
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Click outside backdrop container */}
+                      {isEmpDropdownOpen && (
+                        <div 
+                          className="fixed inset-0 z-40 bg-transparent pointer-events-auto"
+                          onClick={() => setIsEmpDropdownOpen(false)}
+                        />
+                      )}
                     </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Dates & Requested Days input (Only Start Date and Requested Days) */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
-                    Fecha de Inicio
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-white text-gray-800 focus:border-indigo-500 outline-none font-medium"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
-                    Días Solicitados
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    required
-                    className="w-full border border-gray-200 rounded-xl p-2.5 text-xs bg-white text-gray-800 focus:border-indigo-500 outline-none font-extrabold"
-                    value={requestedDays}
-                    onChange={(e) => setRequestedDays(Math.max(1, parseInt(e.target.value) || 0))}
-                  />
-                </div>
-              </div>
-
-              {/* Display Calculated Return Date (No icons) */}
-              {startDate && requestedDays > 0 && computedResults.endDateStr && (
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5 text-xs">
-                  <div className="flex justify-between items-center text-gray-600">
-                    <span>Último día de descanso:</span>
-                    <strong className="text-gray-900 font-extrabold uppercase text-[10px]">
-                      {computedResults.endDateSpanish}
-                    </strong>
                   </div>
-                  <div className="flex justify-between items-center border-t border-gray-200 pt-1.5 text-indigo-900">
-                    <span className="font-bold">Fecha de regreso a oficina:</span>
-                    <strong className="text-indigo-600 font-black uppercase text-[11px]">
-                      {computedResults.returnDateSpanish}
-                    </strong>
+
+                  <hr className="border-slate-200/60" />
+
+                  {/* 2. DETALLES DEL PERMISO */}
+                  <div className="space-y-3">
+                    <label className="block text-[11px] font-black text-slate-400 tracking-wider uppercase">
+                      2. DETALLES DEL PERMISO
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-bold text-slate-600 block">Días Solicitados</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          required
+                          className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-extrabold text-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                          value={requestedDays}
+                          onChange={(e) => setRequestedDays(Math.max(1, parseInt(e.target.value) || 0))}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-bold text-slate-600 block">Fecha de Inicio</span>
+                        <div className="relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                          <input
+                            type="date"
+                            required
+                            className="w-full bg-white border border-slate-200 rounded-xl py-3 pl-10 pr-4 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr className="border-slate-200/60" />
+
+                  {/* 3. TIPO DE PERMISO */}
+                  <div className="space-y-3">
+                    <label className="block text-[11px] font-black text-slate-400 tracking-wider uppercase">
+                      3. TIPO DE PERMISO
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Card 1: A cuenta de vacaciones */}
+                      <button
+                        type="button"
+                        onClick={() => setRequestType('disponibles')}
+                        className={`p-4 rounded-2xl border-2 text-center flex flex-col items-center justify-center gap-2.5 transition-all group ${
+                          requestType === 'disponibles'
+                            ? 'border-indigo-600 bg-white ring-1 ring-indigo-500 shadow-md shadow-indigo-600/5'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}
+                      >
+                        <div className={`p-2 rounded-xl transition-colors ${
+                          requestType === 'disponibles' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                        }`}>
+                          <Calendar className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="block text-xs font-extrabold text-slate-800">A cuenta de vacaciones</span>
+                          <span className="block text-[10px] text-slate-500 font-medium mt-0.5">
+                            {activeEmpBalance ? activeEmpBalance.balance : 0} días disponibles
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Card 2: Con descuento a sueldo */}
+                      <button
+                        type="button"
+                        onClick={() => setRequestType('descuento')}
+                        className={`p-4 rounded-2xl border-2 text-center flex flex-col items-center justify-center gap-2.5 transition-all group ${
+                          requestType === 'descuento'
+                            ? 'border-indigo-600 bg-white ring-1 ring-indigo-500 shadow-md shadow-indigo-600/5'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}
+                      >
+                        <div className={`p-2 rounded-xl transition-colors ${
+                          requestType === 'descuento' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                        }`}>
+                          <Wallet className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="block text-xs font-extrabold text-slate-800">Con descuento a sueldo</span>
+                          <span className="block text-[10px] text-slate-500 font-medium mt-0.5">
+                            Se descontará del pago
+                          </span>
+                        </div>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {/* Notes */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">
-                  Comentarios / Observaciones
-                </label>
-                <textarea
-                  rows={2}
-                  className="w-full border border-gray-200 rounded-xl p-3 text-xs bg-white text-gray-800 focus:border-indigo-500 outline-none placeholder-gray-400 font-medium"
-                  placeholder="Especifica el motivo o detalles de la solicitud..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
+                {/* Right Column (Sidebar Summary & Authorization) */}
+                <div className="lg:col-span-5 space-y-4">
+                  
+                  {/* Card: Resumen del Empleado */}
+                  <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                    <div className="bg-slate-50/60 px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                      <User className="w-4 h-4 text-indigo-600" />
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">Resumen del Empleado</h4>
+                    </div>
+                    <div className="p-5 space-y-3.5 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-semibold">Fecha de Ingreso:</span>
+                        <span className="text-slate-800 font-black text-right">
+                          {activeEmployee?.hireDate ? (() => {
+                            try {
+                              const d = new Date(activeEmployee.hireDate + 'T00:00:00');
+                              if (isNaN(d.getTime())) return activeEmployee.hireDate;
+                              return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+                            } catch {
+                              return activeEmployee.hireDate;
+                            }
+                          })() : 'N/R'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-semibold">Vacaciones Restantes:</span>
+                        <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-black text-[11px]">
+                          {activeEmpBalance ? activeEmpBalance.balance : 0} días
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card: Resumen y Autorización */}
+                  <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                    <div className="bg-slate-50/60 px-5 py-3 border-b border-slate-100">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">Resumen y Autorización</h4>
+                    </div>
+                    <div className="p-5 space-y-4 text-xs">
+                      
+                      {/* Calculated return banner */}
+                      <div className="bg-[#f5f3ff] border border-indigo-100/60 rounded-xl p-3.5 flex justify-between items-center gap-2">
+                        <span className="text-slate-600 font-bold">Fecha de Regreso:</span>
+                        <span className="text-indigo-600 font-black text-right text-sm">
+                          {startDate && requestedDays > 0 ? (computedResults.returnDateSpanish || 'Cargando...') : 'N/R'}
+                        </span>
+                      </div>
+
+                      {/* Authorized by Field */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-black text-slate-400 tracking-wider uppercase block">
+                          Autorizado por
+                        </span>
+                        <input
+                          type="text"
+                          required
+                          className="w-full bg-slate-50/50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                          value={authorizedBy}
+                          onChange={(e) => setAuthorizedBy(e.target.value)}
+                        />
+                      </div>
+
+                    </div>
+                  </div>
+
+                </div>
+
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-3 pt-4 border-t mt-4">
+              {/* Action Buttons Footer */}
+              <div className="flex justify-end gap-3 p-5 bg-slate-50 border-t border-slate-200/60 rounded-b-2xl">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-gray-200 text-gray-500 font-bold hover:bg-gray-50 rounded-xl text-xs transition-colors"
+                  className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 rounded-xl text-xs transition-all"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || !startDate || requestedDays <= 0}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs disabled:opacity-50 transition-colors shadow-sm"
+                  disabled={loading || !selectedEmpId || !startDate || requestedDays <= 0}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs disabled:opacity-50 transition-all shadow-sm"
                 >
-                  {loading ? 'Procesando...' : 'Registrar Solicitud'}
+                  {loading ? 'Procesando...' : 'Registrar Permiso'}
                 </button>
               </div>
+
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Action Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            <h4 className="text-base font-extrabold text-gray-900 mb-2">{confirmModal.title}</h4>
+            <p className="text-xs text-gray-500 mb-6 font-medium">
+              {confirmModal.message}
+            </p>
+            
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-extrabold text-xs rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className={`px-4 py-2 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all ${confirmModal.confirmBg || 'bg-indigo-600 hover:bg-indigo-700'}`}
+              >
+                {confirmModal.confirmText || 'Aceptar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

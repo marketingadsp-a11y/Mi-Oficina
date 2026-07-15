@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Settings } from 'lucide-react';
 import { Employee, VacationRequest } from '../types';
 
 interface VacationsBalancesTableProps {
@@ -10,6 +10,28 @@ interface VacationsBalancesTableProps {
 export const VacationsBalancesTable: React.FC<VacationsBalancesTableProps> = ({ employees, vacationRequests }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('TODOS');
+  const [daysPerYear, setDaysPerYear] = useState<number>(() => {
+    const saved = localStorage.getItem('vacationDaysPerYear');
+    return saved ? parseInt(saved, 10) : 12;
+  });
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [tempDaysValue, setTempDaysValue] = useState<string>(String(daysPerYear));
+
+  // Keep state updated if changed elsewhere
+  useEffect(() => {
+    const handleChanged = () => {
+      const saved = localStorage.getItem('vacationDaysPerYear');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        setDaysPerYear(parsed);
+        setTempDaysValue(String(parsed));
+      }
+    };
+    window.addEventListener('vacationDaysPerYearChanged', handleChanged);
+    return () => {
+      window.removeEventListener('vacationDaysPerYearChanged', handleChanged);
+    };
+  }, []);
 
   // Calculates Vacation Balance for an Employee
   const getEmployeeBalance = (emp: Employee) => {
@@ -26,8 +48,8 @@ export const VacationsBalancesTable: React.FC<VacationsBalancesTableProps> = ({ 
       // Calculate completed years
       const yearsOfService = diffDays >= 0 ? Math.floor(diffDays / 365.25) : 0;
       
-      // 1 year complete = 12 days automatically, 2 years = 24 days etc.
-      const totalEarned = yearsOfService >= 1 ? yearsOfService * 12 : 0;
+      // 1 year complete = daysPerYear days automatically, 2 years = daysPerYear * 2 etc.
+      const totalEarned = yearsOfService >= 1 ? yearsOfService * daysPerYear : 0;
       
       // Filter approved requests of type 'disponibles' (subtracted days)
       const empRequests = vacationRequests.filter(
@@ -103,32 +125,21 @@ export const VacationsBalancesTable: React.FC<VacationsBalancesTableProps> = ({ 
   return (
     <div className="space-y-6">
       
-      {/* Title & Description */}
-      <div>
-        <h3 className="text-xl font-bold text-gray-800">Saldos de Vacaciones</h3>
-        <p className="text-sm text-gray-500 mt-1">
-          Historial de antigüedad, días de vacaciones ganados (12 días por año completo), tomados y saldo disponible de colaboradores.
-        </p>
-      </div>
-
-      {/* Summary Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Colaboradores</p>
-          <p className="text-lg font-black text-gray-800 mt-1">{totalMetrics.count}</p>
+      {/* Title & Description with Configurar Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h3 className="text-xl font-bold text-gray-800">Saldos de Vacaciones</h3>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Días Totales Ganados</p>
-          <p className="text-lg font-black text-indigo-600 mt-1">{totalMetrics.earnedSum} días</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Días Totales Usados</p>
-          <p className="text-lg font-black text-red-600 mt-1">{totalMetrics.usedSum} días</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Saldo Total Disponible</p>
-          <p className="text-lg font-black text-emerald-600 mt-1">{totalMetrics.balanceSum} días</p>
-        </div>
+        <button
+          onClick={() => {
+            setTempDaysValue(String(daysPerYear));
+            setIsConfigModalOpen(true);
+          }}
+          className="flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs rounded-xl transition-all border border-indigo-100 shadow-sm self-start sm:self-auto"
+        >
+          <Settings className="w-4 h-4" />
+          Configurar
+        </button>
       </div>
 
       {/* Control Tools */}
@@ -232,6 +243,60 @@ export const VacationsBalancesTable: React.FC<VacationsBalancesTableProps> = ({ 
           </table>
         </div>
       </div>
+      
+      {/* Modal de Configuración de Días de Vacaciones */}
+      {isConfigModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            <h4 className="text-base font-extrabold text-gray-900 mb-2">Configurar Días de Vacaciones</h4>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-extrabold text-gray-400 uppercase tracking-wider mb-2">
+                  Días por año completo
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="40"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs bg-gray-50 focus:bg-white focus:ring-1 focus:ring-indigo-500 outline-none transition-all font-bold"
+                  value={tempDaysValue}
+                  onChange={(e) => setTempDaysValue(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempDaysValue(String(daysPerYear));
+                    setIsConfigModalOpen(false);
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-extrabold text-xs rounded-xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const parsed = parseInt(tempDaysValue, 10);
+                    if (!isNaN(parsed) && parsed > 0) {
+                      localStorage.setItem('vacationDaysPerYear', String(parsed));
+                      setDaysPerYear(parsed);
+                      setIsConfigModalOpen(false);
+                      // Trigger custom event to notify other components in same session
+                      window.dispatchEvent(new Event('vacationDaysPerYearChanged'));
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
