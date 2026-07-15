@@ -13,7 +13,8 @@ import {
   Loader2,
   Sparkles,
   RefreshCw,
-  Wand2 // Added Wand icon
+  Wand2, // Added Wand icon
+  MessageSquare
 } from 'lucide-react';
 import { Employee, Expense, Task, TaskStatus } from '../types';
 import { generateMascotaImage, generateMascotaVideo } from '../services/geminiService';
@@ -304,6 +305,23 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
     }
   };
 
+  const handleSendWhatsApp = () => {
+    if (!displayPerson?.email) return;
+    const cleanPhone = displayPerson.email.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.length === 10 ? `52${cleanPhone}` : cleanPhone;
+    
+    let text = `¡Feliz Cumpleaños, ${displayPerson.firstName}! 🎉🎂 Te deseamos lo mejor en este día tan especial de parte de todo el equipo. ✨🎈`;
+    
+    if (activeMediaTab === 'image' && birthdayImage && birthdayImage.startsWith('http')) {
+      text += `\n\nAquí tienes tu tarjeta de felicitación: ${birthdayImage}`;
+    } else if (activeMediaTab === 'video' && birthdayVideo && birthdayVideo.startsWith('http')) {
+      text += `\n\nAquí tienes tu video de felicitación: ${birthdayVideo}`;
+    }
+    
+    const url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
   return (
     <div className="p-6 space-y-6 animate-fade-in">
       <div className="flex justify-between items-center gap-4">
@@ -404,7 +422,7 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
 
               {/* Action Buttons depending on what is active */}
               {activeMediaTab === 'image' ? (
-                birthdayImage && (
+                birthdayImage ? (
                   <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
                      <button 
                       onClick={downloadImage}
@@ -412,6 +430,14 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
                     >
                       <Download className="w-5 h-5 mr-2" /> Descargar Tarjeta
                     </button>
+                    {displayPerson?.email && (
+                      <button 
+                        onClick={handleSendWhatsApp}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center animate-pulse"
+                      >
+                        <MessageSquare className="w-5 h-5 mr-2" /> Enviar por WhatsApp
+                      </button>
+                    )}
                     <button 
                       onClick={handleRegenerate}
                       className="bg-white/20 text-white border border-white/40 px-6 py-2.5 rounded-xl font-bold hover:bg-white/30 transition-colors flex items-center justify-center backdrop-blur-md"
@@ -419,9 +445,20 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
                       <RefreshCw className="w-5 h-5 mr-2" /> Regenerar Imagen
                     </button>
                   </div>
+                ) : (
+                  displayPerson?.email && (
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+                      <button 
+                        onClick={handleSendWhatsApp}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center"
+                      >
+                        <MessageSquare className="w-5 h-5 mr-2" /> Enviar por WhatsApp
+                      </button>
+                    </div>
+                  )
                 )
               ) : (
-                birthdayVideo && (
+                birthdayVideo ? (
                   <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
                      <button 
                       onClick={downloadVideo}
@@ -429,6 +466,14 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
                     >
                       <Download className="w-5 h-5 mr-2" /> Descargar Video
                     </button>
+                    {displayPerson?.email && (
+                      <button 
+                        onClick={handleSendWhatsApp}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center animate-pulse"
+                      >
+                        <MessageSquare className="w-5 h-5 mr-2" /> Enviar por WhatsApp
+                      </button>
+                    )}
                     <button 
                       onClick={handleRegenerateVideo}
                       className="bg-white/20 text-white border border-white/40 px-6 py-2.5 rounded-xl font-bold hover:bg-white/30 transition-colors flex items-center justify-center backdrop-blur-md"
@@ -436,6 +481,17 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
                       <RefreshCw className="w-5 h-5 mr-2" /> Regenerar Video
                     </button>
                   </div>
+                ) : (
+                  displayPerson?.email && (
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+                      <button 
+                        onClick={handleSendWhatsApp}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center"
+                      >
+                        <MessageSquare className="w-5 h-5 mr-2" /> Enviar por WhatsApp
+                      </button>
+                    </div>
+                  )
                 )
               )}
             </div>
