@@ -131,12 +131,12 @@ function App() {
   const [imprentaUrl, setImprentaUrl] = useState('');
   
   const navItems = useMemo(() => [
-    { id: 'tablero', label: 'Panel Principal', icon: LayoutDashboard },
+    { id: 'tablero', label: 'Panel', icon: LayoutDashboard },
     { id: 'personal', label: 'Personal', icon: Users },
-    { id: 'autos', label: 'Autos Oficiales', icon: Car },
+    { id: 'autos', label: 'Auto', icon: Car },
     { id: 'gastos', label: 'Gastos', icon: DollarSign },
     { id: 'tareas', label: 'Tareas', icon: CheckSquare },
-    { id: 'pagares', label: 'Entrega Pagarés', icon: FileSignature },
+    { id: 'pagares', label: 'Pagarés', icon: FileSignature },
     { id: 'fallos', label: 'Fallos', icon: FileWarning },
     { id: 'mascota', label: `Mi ${mascotaName}`, icon: ImageIcon }, 
     { id: 'imprenta', label: 'Imprenta', icon: Printer },

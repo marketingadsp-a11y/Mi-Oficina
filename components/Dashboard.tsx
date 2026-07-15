@@ -14,15 +14,43 @@ import {
   Sparkles,
   RefreshCw,
   Wand2, // Added Wand icon
-  MessageSquare
+  MessageSquare,
+  Sliders,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays
 } from 'lucide-react';
-import { Employee, Expense, Task, TaskStatus } from '../types';
+import { Employee, Expense, Task, TaskStatus, VacationRequest } from '../types';
 import { generateMascotaImage, generateMascotaVideo } from '../services/geminiService';
 import { 
   getDailyBirthdayCard, 
   saveDailyBirthdayCard, 
-  saveDailyBirthdayVideo 
+  saveDailyBirthdayVideo,
+  subscribeToVacationRequests
 } from '../services/dbService';
+
+interface ModuleVisibility {
+  weeklyPermits: boolean;
+  priorityTasks: boolean;
+  upcomingDeliveries: boolean;
+  birthdaysMonthCard: boolean;
+  kpiTotalEmployees: boolean;
+  kpiMonthExpenses: boolean;
+  kpiPendingTasks: boolean;
+  kpiMonthBirthdays: boolean;
+}
+
+const DEFAULT_VISIBILITY: ModuleVisibility = {
+  weeklyPermits: true,
+  priorityTasks: true,
+  upcomingDeliveries: true,
+  birthdaysMonthCard: true,
+  kpiTotalEmployees: true,
+  kpiMonthExpenses: true,
+  kpiPendingTasks: true,
+  kpiMonthBirthdays: true
+};
 
 interface DashboardProps {
   currentUser: Employee; // Added currentUser to props
@@ -64,6 +92,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // State for manually selected person to generate card
   const [manualSelection, setManualSelection] = useState<Employee | null>(null);
 
+  // Vacation/Permits state for Calendario Semanal de Permisos
+  const [vacationRequests, setVacationRequests] = useState<VacationRequest[]>([]);
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(new Date());
+
+  // Subscription to vacations
+  useEffect(() => {
+    const unsubscribe = subscribeToVacationRequests(
+      (data) => setVacationRequests(data),
+      (err) => console.error("Error subscribing to vacation requests in Dashboard:", err)
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Module visibility customization state
+  const [visibleModules, setVisibleModules] = useState<ModuleVisibility>(() => {
+    try {
+      const saved = localStorage.getItem('mi_oficina_dashboard_modules_v2');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Error parsing visibleModules", e);
+    }
+    return DEFAULT_VISIBILITY;
+  });
+
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [tempVisibleModules, setTempVisibleModules] = useState<ModuleVisibility>(visibleModules);
+
+  const handleSaveModulesVisibility = (newVisibility: ModuleVisibility) => {
+    setVisibleModules(newVisibility);
+    localStorage.setItem('mi_oficina_dashboard_modules_v2', JSON.stringify(newVisibility));
+    setIsAdjustModalOpen(false);
+  };
+
   useEffect(() => {
     if (selectedBdayEmployeeId) {
       const emp = employees.find(e => e.id === selectedBdayEmployeeId);
@@ -79,6 +142,76 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // Calculate Metrics
   const totalExpenses = useMemo(() => expenses.reduce((acc, curr) => acc + curr.amount, 0), [expenses]);
   const pendingTasks = useMemo(() => tasks.filter(t => t.status !== TaskStatus.DONE).length, [tasks]);
+
+  // Generate 7 days of the week (Monday to Sunday)
+  const weekDays = useMemo(() => {
+    const current = new Date(currentWeekStart);
+    const day = current.getDay();
+    // Sunday is 0, Monday is 1, etc.
+    const distance = day === 0 ? -6 : 1 - day;
+    const monday = new Date(current);
+    monday.setDate(current.getDate() + distance);
+    
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [currentWeekStart]);
+
+  const changeWeek = (direction: 'prev' | 'next') => {
+    setCurrentWeekStart(prev => {
+      const nextDate = new Date(prev);
+      nextDate.setDate(prev.getDate() + (direction === 'next' ? 7 : -7));
+      return nextDate;
+    });
+  };
+
+  const resetToCurrentWeek = () => {
+    setCurrentWeekStart(new Date());
+  };
+
+  const formatDateISO = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getDayName = (d: Date) => {
+    const names = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    return names[d.getDay()];
+  };
+
+  const getPermitsForDate = (date: Date) => {
+    const dateStr = formatDateISO(date);
+    return vacationRequests.filter(req => {
+      if (req.status === 'Rechazado') return false;
+      return dateStr >= req.startDate && dateStr <= req.endDate;
+    });
+  };
+
+  const getPermitBadgeStyle = (type: string, status: string) => {
+    const base = "text-[10px] font-bold px-1.5 py-0.5 rounded border transition-all text-center select-none ";
+    const isPending = status === 'Pendiente';
+    
+    if (type === 'Vacaciones') {
+      return base + (isPending 
+        ? "bg-emerald-50/50 text-emerald-600 border-dashed border-emerald-300" 
+        : "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm");
+    }
+    if (type === 'Incapacidad') {
+      return base + (isPending 
+        ? "bg-rose-50/50 text-rose-600 border-dashed border-rose-300" 
+        : "bg-rose-50 text-rose-700 border-rose-200 shadow-sm");
+    }
+    // Default 'Permiso'
+    return base + (isPending 
+      ? "bg-amber-50/50 text-amber-600 border-dashed border-amber-300" 
+      : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm");
+  };
 
   // Helper to get greeting name (First Name + First Last Name)
   const greetingName = useMemo(() => {
@@ -335,9 +468,27 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
     window.open(url, '_blank');
   };
 
+  const visibleKpisCount = [
+    visibleModules.kpiTotalEmployees,
+    visibleModules.kpiMonthExpenses,
+    visibleModules.kpiPendingTasks,
+    visibleModules.kpiMonthBirthdays
+  ].filter(Boolean).length;
+
+  const kpiGridClass = visibleKpisCount === 4 
+    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+    : visibleKpisCount === 3
+    ? "grid grid-cols-1 md:grid-cols-3 gap-6"
+    : visibleKpisCount === 2
+    ? "grid grid-cols-1 md:grid-cols-2 gap-6"
+    : "grid grid-cols-1 gap-6";
+
+  const showLeftCol = visibleModules.priorityTasks || visibleModules.upcomingDeliveries;
+  const showRightCol = visibleModules.birthdaysMonthCard;
+
   return (
     <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div className="flex items-center gap-4">
           {mascotaUrl && (
             <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-white ring-4 ring-indigo-50/50 shrink-0 transform -rotate-3 transition-transform hover:rotate-0">
@@ -348,9 +499,21 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
             <h2 className="text-2xl font-bold text-gray-800">Hola, {greetingName}</h2>
           </div>
         </div>
-        <span className="text-sm text-gray-500 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm shrink-0">
-          {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-        </span>
+        <div className="flex items-center gap-3 self-end sm:self-auto">
+          <button
+            onClick={() => {
+              setTempVisibleModules({...visibleModules});
+              setIsAdjustModalOpen(true);
+            }}
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-xl border border-gray-200 shadow-sm transition-all text-xs font-bold"
+          >
+            <Sliders className="w-4 h-4 text-indigo-600" />
+            Ajustar Panel
+          </button>
+          <span className="text-xs text-gray-500 bg-white px-3 py-2 rounded-xl border border-gray-100 shadow-sm shrink-0 font-medium">
+            {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </span>
+        </div>
       </div>
       
       {/* Birthday Special Section - Shows if Today OR Manual Selection */}
@@ -580,202 +743,417 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
 
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Total de Empleados</p>
-            <h3 className="text-3xl font-bold text-gray-800 mt-1">{employees.length}</h3>
-          </div>
-          <div className="p-3 bg-blue-50 rounded-full">
-            <Users className="w-6 h-6 text-blue-600" />
-          </div>
-        </div>
+      {visibleKpisCount > 0 && (
+        <div className={kpiGridClass}>
+          {visibleModules.kpiTotalEmployees && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Total de Empleados</p>
+                <h3 className="text-3xl font-bold text-gray-800 mt-1">{employees.length}</h3>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-full">
+                <Users className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          )}
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Gastos del Mes</p>
-            <h3 className="text-3xl font-bold text-gray-800 mt-1">${totalExpenses.toLocaleString()}</h3>
-          </div>
-          <div className="p-3 bg-green-50 rounded-full">
-            <DollarSign className="w-6 h-6 text-green-600" />
-          </div>
-        </div>
+          {visibleModules.kpiMonthExpenses && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Gastos del Mes</p>
+                <h3 className="text-3xl font-bold text-gray-800 mt-1">${totalExpenses.toLocaleString()}</h3>
+              </div>
+              <div className="p-3 bg-green-50 rounded-full">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          )}
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Tareas Pendientes</p>
-            <h3 className="text-3xl font-bold text-gray-800 mt-1">{pendingTasks}</h3>
-          </div>
-          <div className="p-3 bg-orange-50 rounded-full">
-            <CheckSquare className="w-6 h-6 text-orange-600" />
-          </div>
-        </div>
+          {visibleModules.kpiPendingTasks && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Tareas Pendientes</p>
+                <h3 className="text-3xl font-bold text-gray-800 mt-1">{pendingTasks}</h3>
+              </div>
+              <div className="p-3 bg-orange-50 rounded-full">
+                <CheckSquare className="w-6 h-6 text-orange-600" />
+              </div>
+            </div>
+          )}
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden">
-          <div className="absolute right-0 top-0 w-16 h-full bg-gradient-to-l from-blue-50 to-transparent"></div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium">Cumpleaños (Mes)</p>
-            <h3 className="text-3xl font-bold text-gray-800 mt-1">{monthBirthdays.length}</h3>
+          {visibleModules.kpiMonthBirthdays && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between relative overflow-hidden">
+              <div className="absolute right-0 top-0 w-16 h-full bg-gradient-to-l from-blue-50 to-transparent"></div>
+              <div>
+                <p className="text-sm text-gray-500 font-medium">Cumpleaños (Mes)</p>
+                <h3 className="text-3xl font-bold text-gray-800 mt-1">{monthBirthdays.length}</h3>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-full z-10">
+                <Calendar className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Calendario Semanal de Permisos */}
+      {visibleModules.weeklyPermits && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                <CalendarDays className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">Calendario Semanal de Permisos</h3>
+                <p className="text-xs text-gray-500">Vacaciones, permisos e incapacidades activas de la semana</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 self-center">
+              <button 
+                onClick={() => changeWeek('prev')}
+                className="p-1.5 hover:bg-gray-100 rounded-lg border border-gray-200 text-gray-600 transition-colors"
+                title="Semana anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={resetToCurrentWeek}
+                className="px-3 py-1 text-xs font-bold hover:bg-gray-100 rounded-lg border border-gray-200 text-gray-700 transition-colors"
+              >
+                Esta Semana
+              </button>
+              <button 
+                onClick={() => changeWeek('next')}
+                className="p-1.5 hover:bg-gray-100 rounded-lg border border-gray-200 text-gray-600 transition-colors"
+                title="Semana siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          <div className="p-3 bg-blue-50 rounded-full z-10">
-            <Calendar className="w-6 h-6 text-blue-600" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3">
+            {weekDays.map((day, idx) => {
+              const dayPermits = getPermitsForDate(day);
+              const isToday = formatDateISO(day) === formatDateISO(new Date());
+              
+              return (
+                <div 
+                  key={idx} 
+                  className={`p-3 rounded-xl border flex flex-col min-h-[140px] transition-all ${
+                    isToday 
+                      ? 'bg-indigo-50/20 border-indigo-200 ring-2 ring-indigo-500/5' 
+                      : 'bg-gray-50/50 border-gray-100 hover:border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isToday ? 'text-indigo-600' : 'text-gray-400'}`}>
+                      {getDayName(day)}
+                    </span>
+                    <span className={`text-xs font-bold h-6 w-6 flex items-center justify-center rounded-full ${
+                      isToday ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-700'
+                    }`}>
+                      {day.getDate()}
+                    </span>
+                  </div>
+                  
+                  <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[110px] pr-0.5 custom-scrollbar">
+                    {dayPermits.length === 0 ? (
+                      <div className="h-full flex items-center justify-center py-4">
+                        <span className="text-[10px] text-gray-400 italic">Sin permisos</span>
+                      </div>
+                    ) : (
+                      dayPermits.map(req => {
+                        const emp = employees.find(e => e.id === req.employeeId);
+                        const empName = emp ? `${emp.firstName}` : 'Empleado';
+                        return (
+                          <div 
+                            key={req.id} 
+                            className={getPermitBadgeStyle(req.type, req.status)}
+                            title={`${empName} - ${req.type} (${req.status})\n${req.startDate} al ${req.endDate}${req.notes ? '\nNotas: ' + req.notes : ''}`}
+                          >
+                            <span className="truncate font-bold text-gray-800 leading-tight block">{empName}</span>
+                            <span className="text-[8px] font-medium uppercase mt-0.5 leading-none block">{req.type}</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left Col: Tasks */}
-        <div className="lg:col-span-2 space-y-6">
-           {/* Priority Tasks */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <AlertCircle className="w-5 h-5 mr-2 text-gray-500" /> Tareas Prioritarias
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {tasks.filter(t => t.priority === 'Alta' && t.status !== TaskStatus.DONE).length === 0 ? (
-                <div className="col-span-full p-6 text-center bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                  <p className="text-gray-400">¡Todo bajo control! No hay tareas urgentes.</p>
-                </div>
-              ) : (
-                tasks
-                .filter(t => t.priority === 'Alta' && t.status !== TaskStatus.DONE)
-                .map(task => (
-                  <div key={task.id} className="p-4 border-l-4 border-red-500 bg-red-50 rounded-r-md shadow-sm">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-red-900 line-clamp-1">{task.title}</h4>
-                      <span className="text-[10px] font-semibold text-red-600 bg-white px-2 py-0.5 rounded border border-red-200 whitespace-nowrap">{task.dueDate}</span>
-                    </div>
-                    <p className="text-sm text-red-700 mb-2">{employees.find(e => e.id === task.assignedTo)?.firstName || 'Sin asignar'}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Upcoming Tasks Table */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Clock className="w-5 h-5 mr-2 text-gray-500" /> Próximas Entregas
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                    <th className="pb-3 pl-2 font-medium">Tarea</th>
-                    <th className="pb-3 font-medium">Responsable</th>
-                    <th className="pb-3 font-medium">Fecha</th>
-                    <th className="pb-3 font-medium">Prioridad</th>
-                    <th className="pb-3 font-medium text-right pr-2">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
-                  {upcomingTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-6 text-center text-gray-400 italic">
-                        No hay tareas pendientes próximas.
-                      </td>
-                    </tr>
-                  ) : (
-                    upcomingTasks.map(task => (
-                      <tr key={task.id} className="border-b last:border-0 border-gray-50 hover:bg-gray-50/50 transition-colors">
-                        <td className="py-3 pl-2 font-medium text-gray-700">{task.title}</td>
-                        <td className="py-3 text-gray-500">
-                          <div className="flex items-center">
-                            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500 mr-2">
-                              {(employees.find(e => e.id === task.assignedTo)?.firstName?.charAt(0) || '?')}
-                            </div>
-                            {employees.find(e => e.id === task.assignedTo)?.firstName || 'Sin asignar'}
-                          </div>
-                        </td>
-                        <td className="py-3 text-gray-500 font-mono text-xs">
-                          {task.dueDate}
-                        </td>
-                        <td className="py-3">
-                          <span className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold tracking-wide ${getPriorityStyle(task.priority)}`}>
-                            {task.priority}
-                          </span>
-                        </td>
-                        <td className="py-3 text-right pr-2">
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            task.status === TaskStatus.IN_PROGRESS ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                          }`}>
-                            {task.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Col: Birthdays */}
-        <div className="lg:col-span-1">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-full flex flex-col">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Gift className="w-5 h-5 mr-2 text-blue-500" /> Cumpleaños del Mes
-            </h3>
-            
-            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-3">
-              {monthBirthdays.length === 0 ? (
-                <div className="text-center py-10 text-gray-400 text-sm">
-                  No hay cumpleaños este mes.
-                </div>
-              ) : (
-                monthBirthdays.map(emp => {
-                  const day = parseInt(emp.birthDate.split('-')[2]);
-                  const isToday = todayBirthdays.some(t => t.id === emp.id);
-
-                  return (
-                    <div key={emp.id} className={`flex items-center justify-between p-3 rounded-lg transition-all ${isToday ? 'bg-blue-50 border border-blue-200 shadow-sm' : 'hover:bg-gray-50 border border-transparent'}`}>
-                      <div className="flex items-center flex-1 min-w-0">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mr-3 shrink-0 ${isToday ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                          {day}
-                        </div>
-                        <div className="truncate pr-2">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className={`font-medium text-sm truncate ${isToday ? 'text-blue-700' : 'text-gray-800'}`}>
-                              {emp.firstName} {emp.lastName}
-                            </p>
-                            <span className={`text-[8px] font-extrabold px-1.5 py-0.2 rounded-full border uppercase shrink-0 ${
-                              (emp.status || 'ACTIVO') === 'ACTIVO' 
-                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-                                : (emp.status || 'ACTIVO') === 'INACTIVO'
-                                ? 'bg-amber-50 border-amber-200 text-amber-700'
-                                : 'bg-rose-50 border-rose-200 text-rose-700'
-                            }`}>
-                              ({emp.status || 'ACTIVO'})
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-gray-500 truncate">{emp.position}</p>
-                        </div>
+      {(showLeftCol || showRightCol) && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Left Col: Tasks */}
+          {showLeftCol && (
+            <div className={`${showRightCol ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-6`}>
+              {/* Priority Tasks */}
+              {visibleModules.priorityTasks && (
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <AlertCircle className="w-5 h-5 mr-2 text-gray-500" /> Tareas Prioritarias
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {tasks.filter(t => t.priority === 'Alta' && t.status !== TaskStatus.DONE).length === 0 ? (
+                      <div className="col-span-full p-6 text-center bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                        <p className="text-gray-400">¡Todo bajo control! No hay tareas urgentes.</p>
                       </div>
-                      
-                      {/* Generar Evaristo Button */}
-                      <button 
-                        onClick={() => handleManualSelect(emp)}
-                        className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded-full transition-colors flex items-center text-[10px] font-bold shrink-0"
-                        title={`Generar Evaristo para ${emp.firstName}`}
-                      >
-                         <Wand2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  );
-                })
+                    ) : (
+                      tasks
+                      .filter(t => t.priority === 'Alta' && t.status !== TaskStatus.DONE)
+                      .map(task => (
+                        <div key={task.id} className="p-4 border-l-4 border-red-500 bg-red-50 rounded-r-md shadow-sm">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-red-900 line-clamp-1">{task.title}</h4>
+                            <span className="text-[10px] font-semibold text-red-600 bg-white px-2 py-0.5 rounded border border-red-200 whitespace-nowrap">{task.dueDate}</span>
+                          </div>
+                          <p className="text-sm text-red-700 mb-2">{employees.find(e => e.id === task.assignedTo)?.firstName || 'Sin asignar'}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Upcoming Tasks Table */}
+              {visibleModules.upcomingDeliveries && (
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <Clock className="w-5 h-5 mr-2 text-gray-500" /> Próximas Entregas
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                          <th className="pb-3 pl-2 font-medium">Tarea</th>
+                          <th className="pb-3 font-medium">Responsable</th>
+                          <th className="pb-3 font-medium">Fecha</th>
+                          <th className="pb-3 font-medium">Prioridad</th>
+                          <th className="pb-3 font-medium text-right pr-2">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-sm">
+                        {upcomingTasks.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="py-6 text-center text-gray-400 italic">
+                              No hay tareas pendientes próximas.
+                            </td>
+                          </tr>
+                        ) : (
+                          upcomingTasks.map(task => (
+                            <tr key={task.id} className="border-b last:border-0 border-gray-50 hover:bg-gray-50/50 transition-colors">
+                              <td className="py-3 pl-2 font-medium text-gray-700">{task.title}</td>
+                              <td className="py-3 text-gray-500">
+                                <div className="flex items-center">
+                                  <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500 mr-2">
+                                    {(employees.find(e => e.id === task.assignedTo)?.firstName?.charAt(0) || '?')}
+                                  </div>
+                                  {employees.find(e => e.id === task.assignedTo)?.firstName || 'Sin asignar'}
+                                </div>
+                              </td>
+                              <td className="py-3 text-gray-500 font-mono text-xs">
+                                {task.dueDate}
+                              </td>
+                              <td className="py-3">
+                                <span className={`text-[10px] px-2 py-0.5 rounded border uppercase font-bold tracking-wide ${getPriorityStyle(task.priority)}`}>
+                                  {task.priority}
+                                </span>
+                              </td>
+                              <td className="py-3 text-right pr-2">
+                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                  task.status === TaskStatus.IN_PROGRESS ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {task.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
             </div>
+          )}
+
+          {/* Right Col: Birthdays */}
+          {showRightCol && (
+            <div className={showLeftCol ? 'lg:col-span-1' : 'lg:col-span-3'}>
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-full flex flex-col">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                  <Gift className="w-5 h-5 mr-2 text-blue-500" /> Cumpleaños del Mes
+                </h3>
+                
+                <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-3">
+                  {monthBirthdays.length === 0 ? (
+                    <div className="text-center py-10 text-gray-400 text-sm">
+                      No hay cumpleaños este mes.
+                    </div>
+                  ) : (
+                    monthBirthdays.map(emp => {
+                      const day = parseInt(emp.birthDate.split('-')[2]);
+                      const isToday = todayBirthdays.some(t => t.id === emp.id);
+
+                      return (
+                        <div key={emp.id} className={`flex items-center justify-between p-3 rounded-lg transition-all ${isToday ? 'bg-blue-50 border border-blue-200 shadow-sm' : 'hover:bg-gray-50 border border-transparent'}`}>
+                          <div className="flex items-center flex-1 min-w-0">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mr-3 shrink-0 ${isToday ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                              {day}
+                            </div>
+                            <div className="truncate pr-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className={`font-medium text-sm truncate ${isToday ? 'text-blue-700' : 'text-gray-800'}`}>
+                                  {emp.firstName} {emp.lastName}
+                                </p>
+                                <span className={`text-[8px] font-extrabold px-1.5 py-0.2 rounded-full border uppercase shrink-0 ${
+                                  (emp.status || 'ACTIVO') === 'ACTIVO' 
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                                    : (emp.status || 'ACTIVO') === 'INACTIVO'
+                                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                                    : 'bg-rose-50 border-rose-200 text-rose-700'
+                                }`}>
+                                  ({emp.status || 'ACTIVO'})
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-gray-500 truncate">{emp.position}</p>
+                            </div>
+                          </div>
+                          
+                          {/* Generar Evaristo Button */}
+                          <button 
+                            onClick={() => handleManualSelect(emp)}
+                            className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-100 rounded-full transition-colors flex items-center text-[10px] font-bold shrink-0"
+                            title={`Generar Evaristo para ${emp.firstName}`}
+                          >
+                             <Wand2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                
+                {/* Decoration */}
+                <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+                   <p className="text-xs text-gray-400 italic">"Los pequeños detalles construyen grandes equipos"</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Adjust Panel Modal */}
+      {isAdjustModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden animate-scale-up">
+            <div className="bg-gradient-to-r from-indigo-600 to-blue-600 p-6 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-5 h-5" />
+                <h3 className="text-lg font-bold">Ajustar Panel</h3>
+              </div>
+              <button 
+                onClick={() => setIsAdjustModalOpen(false)}
+                className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition-all text-xs"
+              >
+                ✕
+              </button>
+            </div>
             
-            {/* Decoration */}
-            <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-               <p className="text-xs text-gray-400 italic">"Los pequeños detalles construyen grandes equipos"</p>
+            <div className="p-6 space-y-4 max-h-[400px] overflow-y-auto">
+              <p className="text-xs text-gray-500 mb-2">Activa o desactiva las secciones del panel principal para personalizar tu espacio de trabajo.</p>
+              
+              <div className="space-y-3">
+                <div className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-wider mb-1">Módulos Principales</div>
+                
+                {[
+                  { key: 'weeklyPermits', label: 'Calendario Semanal de Permisos', desc: 'Muestra las vacaciones y permisos de la semana' },
+                  { key: 'priorityTasks', label: 'Tareas Prioritarias', desc: 'Alertas de tareas con prioridad alta' },
+                  { key: 'upcomingDeliveries', label: 'Próximas Entregas', desc: 'Tabla de entregas programadas más cercanas' },
+                  { key: 'birthdaysMonthCard', label: 'Cumpleaños del Mes', desc: 'Tarjeta y listado interactivo de cumpleaños' },
+                ].map((mod) => (
+                  <div key={mod.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100/70 transition-all border border-gray-100">
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">{mod.label}</p>
+                      <p className="text-[10px] text-gray-500">{mod.desc}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempVisibleModules(prev => ({
+                          ...prev,
+                          [mod.key]: !prev[mod.key as keyof ModuleVisibility]
+                        }));
+                      }}
+                      className={`w-10 h-6 flex items-center rounded-full p-1 transition-all ${
+                        tempVisibleModules[mod.key as keyof ModuleVisibility] ? 'bg-indigo-600 justify-end' : 'bg-gray-300 justify-start'
+                      }`}
+                    >
+                      <span className="w-4 h-4 bg-white rounded-full shadow-md transition-all"></span>
+                    </button>
+                  </div>
+                ))}
+
+                <div className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-wider pt-2 mb-1">Indicadores KPI</div>
+                
+                {[
+                  { key: 'kpiTotalEmployees', label: 'Total de Empleados', desc: 'Número total de colaboradores activos' },
+                  { key: 'kpiMonthExpenses', label: 'Gastos del Mes', desc: 'Monto total de gastos registrados este mes' },
+                  { key: 'kpiPendingTasks', label: 'Tareas Pendientes', desc: 'Contador de tareas asignadas inconclusas' },
+                  { key: 'kpiMonthBirthdays', label: 'Cumpleaños (Mes)', desc: 'Cantidad de cumpleañeros en el mes en curso' },
+                ].map((mod) => (
+                  <div key={mod.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100/70 transition-all border border-gray-100">
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">{mod.label}</p>
+                      <p className="text-[10px] text-gray-500">{mod.desc}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempVisibleModules(prev => ({
+                          ...prev,
+                          [mod.key]: !prev[mod.key as keyof ModuleVisibility]
+                        }));
+                      }}
+                      className={`w-10 h-6 flex items-center rounded-full p-1 transition-all ${
+                        tempVisibleModules[mod.key as keyof ModuleVisibility] ? 'bg-indigo-600 justify-end' : 'bg-gray-300 justify-start'
+                      }`}
+                    >
+                      <span className="w-4 h-4 bg-white rounded-full shadow-md transition-all"></span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAdjustModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveModulesVisibility(tempVisibleModules)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" /> Guardar Ajustes
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
