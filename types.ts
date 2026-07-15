@@ -136,3 +136,19 @@ export interface VehicleEvent {
   status: 'Pagado' | 'Pendiente' | 'N/A';
   createdAt: string;
 }
+
+export interface VacationRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCategory: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  totalDays: number;
+  type: 'disponibles' | 'descuento'; // 'disponibles' (días disponibles) o 'descuento' (descuento de nómina)
+  status: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA';
+  createdAt: string;
+  notes?: string;
+  registeredBy?: string;
+}
+

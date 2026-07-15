@@ -1,8 +1,10 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, Phone, Mail, User, MapPin, Filter, Layers, Pencil, Lock, Search, X, Building, Link as LinkIcon, FileSpreadsheet, UploadCloud, AlertTriangle, Download, CheckCircle, RefreshCcw, Users, Clipboard, LayoutGrid, Table, Cake, Loader2, FileText } from 'lucide-react';
-import { Employee, PersonnelCategory, Plaza } from '../types';
-import { addEmployee, deleteEmployee, updateEmployee, addPlaza, deletePlaza, deleteAllEmployees, saveEmployeesBatch } from '../services/dbService';
+import { Plus, Trash2, Phone, Mail, User, MapPin, Filter, Layers, Pencil, Lock, Search, X, Building, Link as LinkIcon, FileSpreadsheet, UploadCloud, AlertTriangle, Download, CheckCircle, RefreshCcw, Users, Clipboard, LayoutGrid, Table, Cake, Loader2, FileText, Calendar, Umbrella, Coins, Clock, Check, AlertCircle } from 'lucide-react';
+import { Employee, PersonnelCategory, Plaza, VacationRequest } from '../types';
+import { addEmployee, deleteEmployee, updateEmployee, addPlaza, deletePlaza, deleteAllEmployees, saveEmployeesBatch, subscribeToVacationRequests, addVacationRequest, updateVacationRequest, deleteVacationRequest } from '../services/dbService';
+import { VacationsControl } from './VacationsControl';
+import { VacationsBalancesTable } from './VacationsBalancesTable';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -11,6 +13,7 @@ interface PersonnelProps {
   employees: Employee[];
   plazas: Plaza[];
   isLoading?: boolean;
+  currentUser?: Employee | null;
 }
 
 const CATEGORIES: PersonnelCategory[] = ['Oficina', 'Ejecutivos', 'Supervisoras', 'Promotoras'];
@@ -34,7 +37,7 @@ const INITIAL_FORM_STATE = {
 
 import { getLocalDateString } from '../lib/dateUtils';
 
-export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoading }) => {
+export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoading, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPlazaModalOpen, setIsPlazaModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -52,6 +55,19 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
   
   const [formData, setFormData] = useState<Partial<Employee>>(INITIAL_FORM_STATE);
   const [loading, setLoading] = useState(false);
+
+  // Vacations Section State
+  const [activeSubSection, setActiveSubSection] = useState<'directory' | 'vacations' | 'balances'>('directory');
+  const [vacationRequests, setVacationRequests] = useState<VacationRequest[]>([]);
+  const [isVacationModalOpen, setIsVacationModalOpen] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToVacationRequests(
+      (data) => setVacationRequests(data),
+      (err) => console.error("Error subscribing to vacation requests:", err)
+    );
+    return () => unsubscribe();
+  }, []);
 
   // Import State
   const [importStep, setImportStep] = useState<'upload' | 'review' | 'processing' | 'success'>('upload');
@@ -186,6 +202,7 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
         (e.firstName || '').toLowerCase().includes(searchLower) ||
         (e.lastName || '').toLowerCase().includes(searchLower) ||
         (e.position || '').toLowerCase().includes(searchLower) ||
+        (e.groupName || '').toLowerCase().includes(searchLower) ||
         (e.plaza && e.plaza.toLowerCase().includes(searchLower));
 
       // 3. Filter by Plaza Dropdown
@@ -528,7 +545,50 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
 
   return (
     <div className="p-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+      {/* Sub-section Switcher */}
+      <div className="flex border-b border-gray-200 mb-6 gap-6">
+        <button
+          onClick={() => setActiveSubSection('directory')}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeSubSection === 'directory'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Directorio de Personal
+        </button>
+        <button
+          onClick={() => setActiveSubSection('vacations')}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeSubSection === 'vacations'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <Umbrella className="w-4 h-4" />
+          Control de Vacaciones
+        </button>
+        <button
+          onClick={() => setActiveSubSection('balances')}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+            activeSubSection === 'balances'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <Coins className="w-4 h-4" />
+          Saldos de Vacaciones
+        </button>
+      </div>
+
+      {activeSubSection === 'vacations' ? (
+        <VacationsControl employees={employees} vacationRequests={vacationRequests} currentUser={currentUser} />
+      ) : activeSubSection === 'balances' ? (
+        <VacationsBalancesTable employees={employees} vacationRequests={vacationRequests} />
+      ) : (
+        <>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Directorio de Personal</h2>
           <p className="text-sm text-gray-500 mt-1">Gestión de {activeCategory === 'Todos' ? 'todo el personal' : activeCategory}</p>
@@ -580,7 +640,7 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
           <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
           <input 
             type="text" 
-            placeholder="Buscar por nombre, plaza o puesto..." 
+            placeholder="Buscar por nombre, plaza, puesto o grupo..." 
             className="w-full pl-10 pr-4 py-2.5 border rounded-lg text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -935,6 +995,8 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
               </div>
             </div>
           )}
+        </>
+      )}
         </>
       )}
 

@@ -398,9 +398,7 @@ export const Vehicles: React.FC<VehiclesProps> = ({
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
             Autos de {companyName || 'la Financiera'}
           </h2>
-          <p className="text-xs text-gray-400 font-medium mt-1 uppercase tracking-wider">
-            Control de flota corporativa, bitácora de conductores e historial técnico
-          </p>
+
         </div>
         
         <button 

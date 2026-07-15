@@ -315,7 +315,6 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
           )}
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Hola, {greetingName}</h2>
-            <p className="text-sm text-gray-500 hidden sm:block">Bienvenido a {companyName || 'tu oficina'}</p>
           </div>
         </div>
         <span className="text-sm text-gray-500 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm shrink-0">

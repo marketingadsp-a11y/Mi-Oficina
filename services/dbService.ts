@@ -26,7 +26,7 @@ import {
   getDownloadURL 
 } from "firebase/storage";
 import { db, storage } from "../firebase";
-import { Employee, Expense, Task, TaskStatus, AppSettings, GeneratedImage, Plaza, Fallo } from "../types";
+import { Employee, Expense, Task, TaskStatus, AppSettings, GeneratedImage, Plaza, Fallo, VacationRequest } from "../types";
 import { uploadToImgBB } from "./imgbbService";
 
 
@@ -690,3 +690,31 @@ export const addVehicleEvent = async (event: Omit<VehicleEvent, 'id' | 'createdA
 export const deleteVehicleEvent = async (id: string) => {
   return await deleteDoc(doc(db, "vehicle_events", id));
 };
+
+// --- VACATIONS CONTROL ---
+
+export const subscribeToVacationRequests = (callback: (requests: VacationRequest[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "vacation_requests"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snapshot) => {
+    const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VacationRequest));
+    callback(requests);
+  }, onError);
+};
+
+export const addVacationRequest = async (request: Omit<VacationRequest, 'id' | 'createdAt'>) => {
+  return await addDoc(collection(db, "vacation_requests"), {
+    ...request,
+    createdAt: new Date().toISOString()
+  });
+};
+
+export const updateVacationRequest = async (id: string, request: Partial<VacationRequest>) => {
+  const requestRef = doc(db, "vacation_requests", id);
+  const { id: _, ...data } = request as any;
+  return await updateDoc(requestRef, cleanUndefined(data));
+};
+
+export const deleteVacationRequest = async (id: string) => {
+  return await deleteDoc(doc(db, "vacation_requests", id));
+};
+
