@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, Phone, Mail, User, MapPin, Filter, Layers, Pencil, Lock, Search, X, Building, Link as LinkIcon, FileSpreadsheet, UploadCloud, AlertTriangle, Download, CheckCircle, RefreshCcw, Users, Clipboard, LayoutGrid, Table, Cake, Loader2, FileText, Calendar, Umbrella, Coins, Clock, Check, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Phone, Mail, User, MapPin, Filter, Layers, Pencil, Lock, Search, X, Building, Link as LinkIcon, FileSpreadsheet, UploadCloud, AlertTriangle, Download, CheckCircle, RefreshCcw, Users, Clipboard, LayoutGrid, Table, Cake, Loader2, FileText, Calendar, Umbrella, Coins, Clock, Check, AlertCircle, MessageSquare } from 'lucide-react';
 import { Employee, PersonnelCategory, Plaza, VacationRequest } from '../types';
 import { addEmployee, deleteEmployee, updateEmployee, addPlaza, deletePlaza, deleteAllEmployees, saveEmployeesBatch, subscribeToVacationRequests, addVacationRequest, updateVacationRequest, deleteVacationRequest } from '../services/dbService';
 import { VacationsControl } from './VacationsControl';
@@ -276,6 +276,12 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
           return;
       }
 
+      if (formData.email && !/^\d{1,10}$/.test(formData.email)) {
+          alert("El Celular / WhatsApp debe ser numérico de máximo 10 dígitos.");
+          setLoading(false);
+          return;
+      }
+
       const employeeData = {
         ...formData,
         category: formData.category || 'Oficina',
@@ -318,11 +324,11 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
   
   const handleDownloadTemplate = () => {
     const headers = [
-      ['Nombre', 'Apellido', 'Email', 'Puesto', 'Plaza', 'Categoría', 'Teléfono', 'Fecha Nacimiento (YYYY-MM-DD)', 'Fecha Contratación (YYYY-MM-DD)']
+      ['Nombre', 'Apellido', 'Celular / WhatsApp', 'Puesto', 'Plaza', 'Categoría', 'Teléfono', 'Fecha Nacimiento (YYYY-MM-DD)', 'Fecha Contratación (YYYY-MM-DD)']
     ];
     const exampleData = [
-      ['Juan', 'Perez', 'juan.perez@ejemplo.com', 'Gerente', 'CDMX', 'Oficina', '5551234567', '1990-05-15', '2023-01-10'],
-      ['Maria', 'Lopez', 'maria.lopez@ejemplo.com', 'Vendedora', 'GDL', 'Promotoras', '3339876543', '1995-10-20', '2023-03-01']
+      ['Juan', 'Perez', '5551234567', 'Gerente', 'CDMX', 'Oficina', '5551234567', '1990-05-15', '2023-01-10'],
+      ['Maria', 'Lopez', '3339876543', 'Vendedora', 'GDL', 'Promotoras', '3339876543', '1995-10-20', '2023-03-01']
     ];
 
     const wb = XLSX.utils.book_new();
@@ -358,7 +364,7 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
           parsedEmployees.push({
             firstName: row[0]?.toString() || '',
             lastName: row[1]?.toString() || '',
-            email: row[2]?.toString() || '',
+            email: row[2]?.toString().replace(/\D/g, '').slice(0, 10) || '',
             position: row[3]?.toString() || '',
             plaza: row[4]?.toString() || '',
             category: (row[5] as PersonnelCategory) || 'Oficina',
@@ -468,7 +474,7 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
         ? getLinkedName(emp.linkedSupervisorId) || 'N/A' 
         : (emp.category === 'Supervisoras' ? emp.supervisionName || 'N/A' : 'N/A'),
       'Grupo': emp.groupName || 'N/A',
-      'Correo': emp.email || '',
+      'Celular / WhatsApp': emp.email || '',
       'Teléfono': emp.phone || '',
       'Fecha Nacimiento': emp.birthDate || '',
       'Fecha Ingreso': emp.hireDate || ''
@@ -834,8 +840,8 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
                     )}
 
                     <div className="flex items-center p-2 bg-gray-50 rounded-lg">
-                      <Mail className="w-4 h-4 mr-3 text-gray-400" /> 
-                      <a href={`mailto:${employee.email}`} className="hover:text-blue-600 truncate">{employee.email || 'Sin correo'}</a>
+                      <MessageSquare className="w-4 h-4 mr-3 text-emerald-500" /> 
+                      <span className="truncate text-gray-700 font-medium">{employee.email ? `Cel/WA: ${employee.email}` : 'Sin Celular / WA'}</span>
                     </div>
                     <div className="flex items-center p-2 bg-gray-50 rounded-lg">
                       <Phone className="w-4 h-4 mr-3 text-gray-400" /> 
@@ -936,9 +942,9 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
                           ) : (
                             <div className="flex flex-col text-xs text-gray-500 space-y-1">
                               {employee.email && (
-                                <a href={`mailto:${employee.email}`} className="flex items-center hover:text-blue-600">
-                                  <Mail className="w-3 h-3 mr-1" /> {employee.email}
-                                </a>
+                                <span className="flex items-center text-gray-700 font-medium" title="Celular / WhatsApp">
+                                  <MessageSquare className="w-3 h-3 mr-1 text-emerald-500" /> {employee.email}
+                                </span>
                               )}
                               {employee.phone && (
                                 <span className="flex items-center">
@@ -1375,8 +1381,7 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
                      value={formData.firstName} 
                      onChange={e => {
                        const val = e.target.value;
-                       const autoEmail = generateAutoEmail(val, formData.lastName || '');
-                       setFormData(prev => ({...prev, firstName: val, email: autoEmail || prev.email}));
+                       setFormData(prev => ({...prev, firstName: val}));
                      }} 
                    />
                 </div>
@@ -1388,16 +1393,25 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
                      value={formData.lastName} 
                      onChange={e => {
                        const val = e.target.value;
-                       const autoEmail = generateAutoEmail(formData.firstName || '', val);
-                       setFormData(prev => ({...prev, lastName: val, email: autoEmail || prev.email}));
+                       setFormData(prev => ({...prev, lastName: val}));
                      }} 
                    />
                 </div>
               </div>
               
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Correo Electrónico</label>
-                <input type="email" placeholder="ejemplo@empresa.com" className="w-full border p-2 rounded bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                <label className="text-xs text-gray-500 mb-1 block font-bold">Celular / WhatsApp</label>
+                <input 
+                  type="text" 
+                  maxLength={10}
+                  placeholder="10 dígitos numéricos (Ej: 5551234567)" 
+                  className="w-full border p-2 rounded bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" 
+                  value={formData.email} 
+                  onChange={e => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setFormData(prev => ({...prev, email: val}));
+                  }} 
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
