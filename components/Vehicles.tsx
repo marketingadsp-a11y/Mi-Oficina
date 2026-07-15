@@ -100,9 +100,9 @@ export const Vehicles: React.FC<VehiclesProps> = ({
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Filter employees eligible for driving (Executives or Supervisors)
+  // Filter employees eligible for driving (Executives, Supervisors, or Office staff)
   const eligibleDrivers = useMemo(() => {
-    return employees.filter(emp => emp.category === 'Ejecutivos' || emp.category === 'Supervisoras');
+    return employees.filter(emp => emp.category === 'Ejecutivos' || emp.category === 'Supervisoras' || emp.category === 'Oficina');
   }, [employees]);
 
   // Filter drivers based on search query in Assignment panel
@@ -732,7 +732,7 @@ export const Vehicles: React.FC<VehiclesProps> = ({
                       className="border-t border-gray-150 pt-3 space-y-3 overflow-hidden"
                     >
                       <div className="relative">
-                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Buscar Ejecutivo / Supervisora *</label>
+                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Buscar Empleado / Conductor (Ejecutivo, Supervisora, Oficina) *</label>
                         <div className="relative">
                           <input 
                             type="text"
