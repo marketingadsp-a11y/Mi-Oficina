@@ -36,7 +36,8 @@ import {
   ExternalLink,
   Wand2,
   Printer,
-  Car
+  Car,
+  MessageSquare
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -147,6 +148,7 @@ function App() {
   const [mobileNavSections, setMobileNavSections] = useState<string[]>(['tablero', 'personal', 'autos', 'gastos', 'tareas', 'fallos', 'imprenta']);
   const [birthdayPrompt, setBirthdayPrompt] = useState<string>('');
   const [birthdayVideoPrompt, setBirthdayVideoPrompt] = useState<string>('');
+  const [birthdayWhatsAppTemplate, setBirthdayWhatsAppTemplate] = useState<string>('');
   const [loadAllExpenses, setLoadAllExpenses] = useState(false);
   const [loadAllFallos, setLoadAllFallos] = useState(false);
   const [isSyncingExpenses, setIsSyncingExpenses] = useState(false);
@@ -164,6 +166,7 @@ function App() {
   const [tempMobileNavSections, setTempMobileNavSections] = useState<string[]>([]);
   const [tempBirthdayPrompt, setTempBirthdayPrompt] = useState('');
   const [tempBirthdayVideoPrompt, setTempBirthdayVideoPrompt] = useState('');
+  const [tempBirthdayWhatsAppTemplate, setTempBirthdayWhatsAppTemplate] = useState('');
   
   // Storage Migration / Cleanup UI state
   const [deleteBase64Auth, setDeleteBase64Auth] = useState('');
@@ -318,6 +321,7 @@ function App() {
         setAppVersion(settingsData.appVersion || '1.0.0');
         setAppStatusColor(settingsData.appStatusColor || '#10B981');
         setImprentaUrl(settingsData.imprentaUrl || '');
+        setBirthdayWhatsAppTemplate(settingsData.birthdayWhatsAppTemplate || '');
       } catch (e) {
         console.error("Error fetching settings on init:", e);
       }
@@ -436,6 +440,9 @@ function App() {
       }
       if (settings.birthdayVideoPrompt) {
         setBirthdayVideoPrompt(settings.birthdayVideoPrompt);
+      }
+      if (settings.birthdayWhatsAppTemplate !== undefined) {
+        setBirthdayWhatsAppTemplate(settings.birthdayWhatsAppTemplate);
       }
       if (settings.imprentaUrl !== undefined) {
         setImprentaUrl(settings.imprentaUrl);
@@ -590,6 +597,7 @@ function App() {
     setTempMobileNavSections([...mobileNavSections]);
     setTempBirthdayPrompt(birthdayPrompt);
     setTempBirthdayVideoPrompt(birthdayVideoPrompt);
+    setTempBirthdayWhatsAppTemplate(birthdayWhatsAppTemplate);
     setTempImprentaUrl(imprentaUrl);
     setKeyStatus('idle');
     setIsSettingsOpen(true);
@@ -739,6 +747,7 @@ function App() {
         mobileNavSections: tempMobileNavSections,
         birthdayPrompt: tempBirthdayPrompt,
         birthdayVideoPrompt: tempBirthdayVideoPrompt,
+        birthdayWhatsAppTemplate: tempBirthdayWhatsAppTemplate,
         imprentaUrl: tempImprentaUrl
       });
 
@@ -752,6 +761,7 @@ function App() {
       setMobileNavSections(tempMobileNavSections);
       setBirthdayPrompt(tempBirthdayPrompt);
       setBirthdayVideoPrompt(tempBirthdayVideoPrompt);
+      setBirthdayWhatsAppTemplate(tempBirthdayWhatsAppTemplate);
       setImprentaUrl(tempImprentaUrl);
       
       setIsSettingsOpen(false);
@@ -810,7 +820,7 @@ function App() {
     }
 
     switch (activeTab) {
-      case 'tablero': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} birthdayVideoPrompt={birthdayVideoPrompt} selectedBdayEmployeeId={selectedBdayEmployeeId} setSelectedBdayEmployeeId={setSelectedBdayEmployeeId} />;
+      case 'tablero': return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} birthdayVideoPrompt={birthdayVideoPrompt} birthdayWhatsAppTemplate={birthdayWhatsAppTemplate} selectedBdayEmployeeId={selectedBdayEmployeeId} setSelectedBdayEmployeeId={setSelectedBdayEmployeeId} />;
       case 'personal': return <Personnel employees={employees} plazas={plazas} isLoading={!hasLoadedEmployees} currentUser={currentUser} />;
       case 'autos': return <Vehicles employees={employees} vehicles={vehicles} assignments={vehicleAssignments} events={vehicleEvents} isLoading={!hasLoadedVehicles} companyName={companyName} />;
       case 'gastos': return <Expenses expenses={expenses} isLoading={!hasLoadedExpenses} loadAll={loadAllExpenses} isSyncing={isSyncingExpenses} onLoadAll={() => { setLoadAllExpenses(true); setIsSyncingExpenses(true); }} />;
@@ -819,7 +829,7 @@ function App() {
       case 'fallos': return <Fallos currentUser={currentUser} employees={employees} fallos={fallos} isLoading={!hasLoadedFallos} loadAll={loadAllFallos} isSyncing={isSyncingFallos} onLoadAll={() => { setLoadAllFallos(true); setIsSyncingFallos(true); }} />;
       case 'mascota': return <Mascota mascotaUrl={mascotaUrl} mascotaName={mascotaName} onOpenSettings={handleOpenSettings} employees={employees} onSelectBdayEmployee={(empId) => { setSelectedBdayEmployeeId(empId); handleTabChange('tablero'); }} />;
       case 'imprenta': return <Imprenta imprentaUrl={imprentaUrl} onOpenSettings={handleOpenSettings} />;
-      default: return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} birthdayVideoPrompt={birthdayVideoPrompt} selectedBdayEmployeeId={selectedBdayEmployeeId} setSelectedBdayEmployeeId={setSelectedBdayEmployeeId} />;
+      default: return <Dashboard currentUser={currentUser} employees={employees} expenses={dashboardExpenses} tasks={tasks} mascotaUrl={mascotaUrl} mascotaName={mascotaName} companyName={companyName} birthdayPrompt={birthdayPrompt} birthdayVideoPrompt={birthdayVideoPrompt} birthdayWhatsAppTemplate={birthdayWhatsAppTemplate} selectedBdayEmployeeId={selectedBdayEmployeeId} setSelectedBdayEmployeeId={setSelectedBdayEmployeeId} />;
     }
   };
 
@@ -1252,6 +1262,38 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
                   className="mt-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center"
                 >
                   <RefreshCw className="w-3 h-3 mr-1" /> Cargar prompt por defecto de video
+                </button>
+              </div>
+
+              <div className="border-t border-gray-100 my-4 pt-4"></div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
+                  <MessageSquare className="w-4 h-4 mr-2 text-indigo-600" /> Mensaje de WhatsApp de Cumpleaños
+                </label>
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Parámetros disponibles:</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    <code className="text-[10px] text-indigo-600">{"${person.firstName}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.lastName}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.position}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${person.plaza}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${companyName}"}</code>
+                    <code className="text-[10px] text-indigo-600">{"${mascotaName}"}</code>
+                  </div>
+                </div>
+                <textarea 
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all min-h-[100px]"
+                  placeholder={`Ejemplo:\n¡Feliz Cumpleaños, \${person.firstName}! 🎉🎂 Te deseamos lo mejor...`}
+                  value={tempBirthdayWhatsAppTemplate}
+                  onChange={(e) => setTempBirthdayWhatsAppTemplate(e.target.value)}
+                />
+                <button 
+                  type="button"
+                  onClick={() => setTempBirthdayWhatsAppTemplate(`¡Feliz Cumpleaños, \${person.firstName}! 🎉🎂 Te deseamos lo mejor en este día tan especial de parte de todo el equipo de \${companyName}. ✨🎈`)}
+                  className="mt-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" /> Cargar mensaje por defecto de WhatsApp
                 </button>
               </div>
 

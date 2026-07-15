@@ -34,6 +34,7 @@ interface DashboardProps {
   companyName: string;
   birthdayPrompt?: string;
   birthdayVideoPrompt?: string;
+  birthdayWhatsAppTemplate?: string;
   selectedBdayEmployeeId?: string | null;
   setSelectedBdayEmployeeId?: (employeeId: string | null) => void;
 }
@@ -48,6 +49,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   companyName, 
   birthdayPrompt,
   birthdayVideoPrompt,
+  birthdayWhatsAppTemplate,
   selectedBdayEmployeeId,
   setSelectedBdayEmployeeId
 }) => {
@@ -310,7 +312,18 @@ La mascota salta de alegría sonriendo a la cámara, rodeada de confeti brillant
     const cleanPhone = displayPerson.email.replace(/\D/g, '');
     const formattedPhone = cleanPhone.length === 10 ? `52${cleanPhone}` : cleanPhone;
     
-    let text = `¡Feliz Cumpleaños, ${displayPerson.firstName}! 🎉🎂 Te deseamos lo mejor en este día tan especial de parte de todo el equipo. ✨🎈`;
+    let text = '';
+    if (birthdayWhatsAppTemplate) {
+      text = birthdayWhatsAppTemplate
+        .replace(/\${person\.firstName}/g, displayPerson.firstName || '')
+        .replace(/\${person\.lastName}/g, displayPerson.lastName || '')
+        .replace(/\${person\.position}/g, displayPerson.position || '')
+        .replace(/\${person\.plaza}/g, displayPerson.plaza || '')
+        .replace(/\${companyName}/g, companyName || '')
+        .replace(/\${mascotaName}/g, mascotaName || '');
+    } else {
+      text = `¡Feliz Cumpleaños, ${displayPerson.firstName}! 🎉🎂 Te deseamos lo mejor en este día tan especial de parte de todo el equipo. ✨🎈`;
+    }
     
     if (activeMediaTab === 'image' && birthdayImage && birthdayImage.startsWith('http')) {
       text += `\n\nAquí tienes tu tarjeta de felicitación: ${birthdayImage}`;

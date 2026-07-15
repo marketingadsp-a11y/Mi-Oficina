@@ -105,7 +105,9 @@ export const subscribeToAppSettings = (callback: (settings: AppSettings) => void
         appStatusColor: data.appStatusColor || '#10B981',
         mobileNavSections: data.mobileNavSections || ['dashboard', 'personnel', 'expenses', 'tasks', 'fallos'],
         birthdayPrompt: data.birthdayPrompt || '',
-        birthdayVideoPrompt: data.birthdayVideoPrompt || ''
+        birthdayVideoPrompt: data.birthdayVideoPrompt || '',
+        birthdayWhatsAppTemplate: data.birthdayWhatsAppTemplate || '',
+        imprentaUrl: data.imprentaUrl || ''
       });
     }
   }, onError);
@@ -382,6 +384,7 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         appStatusColor: data.appStatusColor || '#10B981',
         birthdayPrompt: data.birthdayPrompt || '',
         birthdayVideoPrompt: data.birthdayVideoPrompt || '',
+        birthdayWhatsAppTemplate: data.birthdayWhatsAppTemplate || '',
         imprentaUrl: data.imprentaUrl || ''
       };
     } else {
@@ -395,6 +398,7 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         appStatusColor: '#10B981',
         birthdayPrompt: '',
         birthdayVideoPrompt: '',
+        birthdayWhatsAppTemplate: '',
         imprentaUrl: ''
       };
     }
@@ -410,6 +414,7 @@ export const getAppSettings = async (): Promise<AppSettings> => {
       appStatusColor: '#10B981',
       birthdayPrompt: '',
       birthdayVideoPrompt: '',
+      birthdayWhatsAppTemplate: '',
       imprentaUrl: ''
     };
   }

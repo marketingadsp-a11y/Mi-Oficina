@@ -81,6 +81,7 @@ export interface AppSettings {
   mobileNavSections?: string[];
   birthdayPrompt?: string;
   birthdayVideoPrompt?: string;
+  birthdayWhatsAppTemplate?: string;
   imprentaUrl?: string;
 }
 
