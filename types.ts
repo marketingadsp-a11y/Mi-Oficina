@@ -26,6 +26,8 @@ export interface Employee {
   phone: string;
   avatarUrl?: string;
   accessCode?: string; // Código de 4 dígitos
+  isOfficeUser?: boolean; // True if logged in as an office
+  officeId?: string; // Associated office ID
   
   // Hierarchy Fields
   linkedExecutiveId?: string; // Para Supervisoras y Promotoras (ID del Ejecutivo)
@@ -39,10 +41,11 @@ export interface Expense {
   id: string;
   description: string;
   amount: number;
-  category: 'Oficina' | 'Comida' | 'Transporte' | 'Software' | 'Servicios' | 'Otros';
+  category: string;
   date: string;
   approvedBy?: string;
   ticketImage?: string; // Base64 string of the receipt/ticket
+  officeId?: string; // Associated office in Multi Oficina mode
 }
 
 export enum TaskStatus {
@@ -83,6 +86,16 @@ export interface AppSettings {
   birthdayVideoPrompt?: string;
   birthdayWhatsAppTemplate?: string;
   imprentaUrl?: string;
+  multiOfficeEnabled?: boolean;
+}
+
+export interface Office {
+  id: string;
+  name: string;
+  code: string; // Used to authenticate/login to view/register this office's expenses
+  responsibleEmployeeId?: string; // ID of associated responsible employee
+  responsibleEmployeeName?: string; // Name of associated responsible employee
+  createdAt: string;
 }
 
 export interface GeneratedImage {

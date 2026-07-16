@@ -159,7 +159,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, appVersion, appStatusColo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (code.length !== 4) return;
+    if (code.length < 3) return;
 
     setLoading(true);
     setError('');
@@ -180,7 +180,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, appVersion, appStatusColo
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+    const val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
     setCode(val);
     if (error) setError('');
   };
@@ -231,18 +231,19 @@ export const Login: React.FC<LoginProps> = ({ onLogin, appVersion, appStatusColo
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 text-center">
-                Ingrese su Código de Acceso
+                Ingrese su Código de Acceso o Sucursal
               </label>
               <div className="relative">
                 <input
-                  type="password"
-                  inputMode="numeric"
+                  type="text"
                   autoFocus
                   value={code}
                   onChange={handleInputChange}
-                  className="w-full text-center text-4xl tracking-[1em] font-bold text-gray-800 border-b-2 border-gray-200 focus:border-blue-600 outline-none py-4 bg-transparent placeholder-gray-200 transition-all"
-                  placeholder="••••"
-                  maxLength={4}
+                  className={`w-full text-center font-bold text-gray-800 border-b-2 border-gray-200 focus:border-blue-600 outline-none py-4 bg-transparent placeholder-gray-200 transition-all ${
+                    code.length > 4 ? 'text-2xl tracking-[0.25em]' : 'text-4xl tracking-[0.7em]'
+                  }`}
+                  placeholder={code.length > 4 ? 'CÓDIGO' : '••••'}
+                  maxLength={10}
                 />
               </div>
               {error && (
@@ -255,9 +256,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, appVersion, appStatusColo
 
             <button
               type="submit"
-              disabled={code.length !== 4 || loading}
+              disabled={code.length < 3 || loading}
               className={`w-full py-4 rounded-xl flex items-center justify-center font-bold text-white transition-all ${
-                code.length === 4 
+                code.length >= 3 
                   ? 'bg-blue-700 hover:bg-blue-800 shadow-lg hover:shadow-blue-500/30 active:scale-[0.98]' 
                   : 'bg-gray-300 cursor-not-allowed'
               }`}

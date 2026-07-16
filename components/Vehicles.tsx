@@ -24,7 +24,8 @@ import {
   SlidersHorizontal,
   FileCheck2,
   CalendarDays,
-  Menu
+  Menu,
+  Pencil
 } from 'lucide-react';
 import { Employee, Vehicle, VehicleAssignment, VehicleEvent } from '../types';
 import { 
@@ -56,6 +57,7 @@ export const Vehicles: React.FC<VehiclesProps> = ({
   // Navigation / Selection States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<'movimientos' | 'gastos'>('movimientos');
   const [logCategory, setLogCategory] = useState<'Todos' | 'Asignaciones' | 'Servicios' | 'Seguros' | 'Refrendos' | 'Otros'>('Todos');
   const [isAssigning, setIsAssigning] = useState(false);
@@ -157,7 +159,25 @@ export const Vehicles: React.FC<VehiclesProps> = ({
     return { total, active, workshop, assigned };
   }, [vehicles]);
 
-  // Handle Create Vehicle
+  // Handle Start Edit
+  const handleStartEdit = (vehicle: Vehicle) => {
+    setEditingVehicleId(vehicle.id);
+    setVehicleForm({
+      brand: vehicle.brand,
+      model: vehicle.model,
+      year: vehicle.year,
+      plates: vehicle.plates,
+      serialNumber: vehicle.serialNumber || '',
+      insurancePolicy: vehicle.insurancePolicy || '',
+      insuranceExpiry: vehicle.insuranceExpiry || '',
+      status: vehicle.status,
+      initialEmployeeId: ''
+    });
+    setInitialDriverSearchQuery('');
+    setIsAddModalOpen(true);
+  };
+
+  // Handle Create or Update Vehicle
   const handleCreateVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vehicleForm.brand || !vehicleForm.model || !vehicleForm.plates) {
@@ -167,30 +187,54 @@ export const Vehicles: React.FC<VehiclesProps> = ({
 
     setSaving(true);
     try {
-      const driver = employees.find(emp => emp.id === vehicleForm.initialEmployeeId);
-      const vehicleData: Omit<Vehicle, 'id' | 'createdAt'> = {
-        brand: vehicleForm.brand,
-        model: vehicleForm.model,
-        year: Number(vehicleForm.year) || new Date().getFullYear(),
-        plates: vehicleForm.plates.toUpperCase().trim(),
-        serialNumber: vehicleForm.serialNumber.trim() || undefined,
-        insurancePolicy: vehicleForm.insurancePolicy.trim() || undefined,
-        insuranceExpiry: vehicleForm.insuranceExpiry || undefined,
-        currentEmployeeId: vehicleForm.initialEmployeeId || undefined,
-        status: vehicleForm.status
-      };
+      if (editingVehicleId) {
+        // Edit flow
+        const updatedData: Partial<Vehicle> = {
+          brand: vehicleForm.brand,
+          model: vehicleForm.model,
+          year: Number(vehicleForm.year) || new Date().getFullYear(),
+          plates: vehicleForm.plates.toUpperCase().trim(),
+          serialNumber: vehicleForm.serialNumber.trim() || undefined,
+          insurancePolicy: vehicleForm.insurancePolicy.trim() || undefined,
+          insuranceExpiry: vehicleForm.insuranceExpiry || undefined,
+          status: vehicleForm.status
+        };
 
-      const docRef = await addVehicle(vehicleData);
+        await updateVehicle(editingVehicleId, updatedData);
 
-      // Create initial assignment log if a driver was selected
-      if (vehicleForm.initialEmployeeId && driver) {
-        await addVehicleAssignment({
-          vehicleId: docRef.id,
-          employeeId: vehicleForm.initialEmployeeId,
-          employeeName: `${driver.firstName} ${driver.lastName}`,
-          assignedAt: new Date().toISOString().split('T')[0],
-          notes: 'Asignación inicial al registrar el vehículo'
-        });
+        // Update selectedVehicle in detail modal if it's the one we're editing
+        if (selectedVehicle?.id === editingVehicleId) {
+          setSelectedVehicle(prev => prev ? { ...prev, ...updatedData } : null);
+        }
+
+        setEditingVehicleId(null);
+      } else {
+        // Create flow
+        const driver = employees.find(emp => emp.id === vehicleForm.initialEmployeeId);
+        const vehicleData: Omit<Vehicle, 'id' | 'createdAt'> = {
+          brand: vehicleForm.brand,
+          model: vehicleForm.model,
+          year: Number(vehicleForm.year) || new Date().getFullYear(),
+          plates: vehicleForm.plates.toUpperCase().trim(),
+          serialNumber: vehicleForm.serialNumber.trim() || undefined,
+          insurancePolicy: vehicleForm.insurancePolicy.trim() || undefined,
+          insuranceExpiry: vehicleForm.insuranceExpiry || undefined,
+          currentEmployeeId: vehicleForm.initialEmployeeId || undefined,
+          status: vehicleForm.status
+        };
+
+        const docRef = await addVehicle(vehicleData);
+
+        // Create initial assignment log if a driver was selected
+        if (vehicleForm.initialEmployeeId && driver) {
+          await addVehicleAssignment({
+            vehicleId: docRef.id,
+            employeeId: vehicleForm.initialEmployeeId,
+            employeeName: `${driver.firstName} ${driver.lastName}`,
+            assignedAt: new Date().toISOString().split('T')[0],
+            notes: 'Asignación inicial al registrar el vehículo'
+          });
+        }
       }
 
       setIsAddModalOpen(false);
@@ -402,7 +446,22 @@ export const Vehicles: React.FC<VehiclesProps> = ({
         </div>
         
         <button 
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => {
+            setEditingVehicleId(null);
+            setVehicleForm({
+              brand: '',
+              model: '',
+              year: new Date().getFullYear(),
+              plates: '',
+              serialNumber: '',
+              insurancePolicy: '',
+              insuranceExpiry: '',
+              status: 'Activo',
+              initialEmployeeId: ''
+            });
+            setInitialDriverSearchQuery('');
+            setIsAddModalOpen(true);
+          }}
           className="bg-gray-900 hover:bg-gray-800 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center shadow transition-all self-start md:self-center"
         >
           <Plus className="w-4 h-4 mr-1.5" /> Registrar Vehículo
@@ -575,15 +634,26 @@ export const Vehicles: React.FC<VehiclesProps> = ({
                           </span>
                         </td>
 
-                        {/* Row Detail Link */}
-                        <td className="py-3 px-4 text-right">
-                          <button 
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              isSelected ? 'bg-indigo-100 text-indigo-700' : 'text-gray-400 hover:bg-gray-100'
-                            }`}
-                          >
-                            <ChevronRight className="w-4 h-4" />
-                          </button>
+                        {/* Row Action Buttons */}
+                        <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end gap-1.5">
+                            <button 
+                              onClick={() => handleStartEdit(v)}
+                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Editar Vehículo"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => setSelectedVehicle(isSelected ? null : v)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                isSelected ? 'bg-indigo-100 text-indigo-700' : 'text-gray-400 hover:bg-gray-100'
+                              }`}
+                              title="Ver Detalles"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -617,12 +687,22 @@ export const Vehicles: React.FC<VehiclesProps> = ({
                     Placas: {selectedVehicle.plates} | Año {selectedVehicle.year}
                   </p>
                 </div>
-                <button 
-                  onClick={() => setSelectedVehicle(null)}
-                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg"
-                >
-                  <X className="w-4.5 h-4.5" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button 
+                    onClick={() => handleStartEdit(selectedVehicle)}
+                    className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1"
+                    title="Editar datos del vehículo"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-bold">Editar</span>
+                  </button>
+                  <button 
+                    onClick={() => setSelectedVehicle(null)}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg"
+                  >
+                    <X className="w-4.5 h-4.5" />
+                  </button>
+                </div>
               </div>
 
               {/* COMPACT DETAIL GRID */}
@@ -1067,8 +1147,16 @@ export const Vehicles: React.FC<VehiclesProps> = ({
               className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-gray-150 flex flex-col my-auto max-h-[92vh]"
             >
               <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
-                <h3 className="text-lg font-bold text-gray-900 tracking-tight">Registrar Nuevo Vehículo</h3>
-                <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+                <h3 className="text-lg font-bold text-gray-900 tracking-tight">
+                  {editingVehicleId ? 'Editar Vehículo' : 'Registrar Nuevo Vehículo'}
+                </h3>
+                <button 
+                  onClick={() => {
+                    setIsAddModalOpen(false);
+                    setEditingVehicleId(null);
+                  }} 
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1161,7 +1249,9 @@ export const Vehicles: React.FC<VehiclesProps> = ({
 
                 <div className="grid grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Estado de Operación Inicial</label>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                      {editingVehicleId ? 'Estado de Operación' : 'Estado de Operación Inicial'}
+                    </label>
                     <select 
                       value={vehicleForm.status}
                       onChange={(e) => setVehicleForm(prev => ({ ...prev, status: e.target.value as any }))}
@@ -1172,81 +1262,90 @@ export const Vehicles: React.FC<VehiclesProps> = ({
                       <option value="Inactivo">Inactivo</option>
                     </select>
                   </div>
-
+ 
                   {/* AUTOCOMPLETE DROPDOWN SEARCH FOR DRIVER */}
-                  <div className="relative">
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Vincular Conductor Inicial</label>
+                  {!editingVehicleId ? (
                     <div className="relative">
-                      <input 
-                        type="text"
-                        placeholder="Buscar conductor..."
-                        value={initialDriverSearchQuery}
-                        onFocus={() => setIsInitialDriverDropdownOpen(true)}
-                        onChange={(e) => {
-                          setInitialDriverSearchQuery(e.target.value);
-                          setIsInitialDriverDropdownOpen(true);
-                          if (!e.target.value.trim()) {
-                            setVehicleForm(prev => ({ ...prev, initialEmployeeId: '' }));
-                          }
-                        }}
-                        className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-700 outline-none focus:border-gray-400 pr-8"
-                      />
-                      {vehicleForm.initialEmployeeId && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setInitialDriverSearchQuery('');
-                            setVehicleForm(prev => ({ ...prev, initialEmployeeId: '' }));
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Vincular Conductor Inicial</label>
+                      <div className="relative">
+                        <input 
+                          type="text"
+                          placeholder="Buscar conductor..."
+                          value={initialDriverSearchQuery}
+                          onFocus={() => setIsInitialDriverDropdownOpen(true)}
+                          onChange={(e) => {
+                            setInitialDriverSearchQuery(e.target.value);
+                            setIsInitialDriverDropdownOpen(true);
+                            if (!e.target.value.trim()) {
+                              setVehicleForm(prev => ({ ...prev, initialEmployeeId: '' }));
+                            }
                           }}
-                          className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                          className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-semibold text-gray-700 outline-none focus:border-gray-400 pr-8"
+                        />
+                        {vehicleForm.initialEmployeeId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInitialDriverSearchQuery('');
+                              setVehicleForm(prev => ({ ...prev, initialEmployeeId: '' }));
+                            }}
+                            className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {isInitialDriverDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setIsInitialDriverDropdownOpen(false)} />
+                          <motion.div 
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-36 overflow-y-auto"
+                          >
+                            {filteredInitialDrivers.length === 0 ? (
+                              <div className="p-2 text-[10px] text-gray-400 text-center font-semibold">
+                                Sin coincidencias
+                              </div>
+                            ) : (
+                              filteredInitialDrivers.map(emp => (
+                                <button
+                                  key={emp.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setVehicleForm(prev => ({ ...prev, initialEmployeeId: emp.id }));
+                                    setInitialDriverSearchQuery(`${emp.firstName} ${emp.lastName}`);
+                                    setIsInitialDriverDropdownOpen(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs font-bold hover:bg-gray-50 flex items-center justify-between text-gray-700"
+                                >
+                                  <span>{emp.firstName} {emp.lastName}</span>
+                                  <span className="text-[9px] bg-gray-100 text-gray-400 px-1.5 py-0.2 rounded font-bold uppercase">
+                                    {emp.category}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </motion.div>
+                        </>
                       )}
                     </div>
-
-                    {isInitialDriverDropdownOpen && (
-                      <>
-                        <div className="fixed inset-0 z-10" onClick={() => setIsInitialDriverDropdownOpen(false)} />
-                        <motion.div 
-                          initial={{ opacity: 0, y: -5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -5 }}
-                          className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-36 overflow-y-auto"
-                        >
-                          {filteredInitialDrivers.length === 0 ? (
-                            <div className="p-2 text-[10px] text-gray-400 text-center font-semibold">
-                              Sin coincidencias
-                            </div>
-                          ) : (
-                            filteredInitialDrivers.map(emp => (
-                              <button
-                                key={emp.id}
-                                type="button"
-                                onClick={() => {
-                                  setVehicleForm(prev => ({ ...prev, initialEmployeeId: emp.id }));
-                                  setInitialDriverSearchQuery(`${emp.firstName} ${emp.lastName}`);
-                                  setIsInitialDriverDropdownOpen(false);
-                                }}
-                                className="w-full text-left px-3 py-2 text-xs font-bold hover:bg-gray-50 flex items-center justify-between text-gray-700"
-                              >
-                                <span>{emp.firstName} {emp.lastName}</span>
-                                <span className="text-[9px] bg-gray-100 text-gray-400 px-1.5 py-0.2 rounded font-bold uppercase">
-                                  {emp.category}
-                                </span>
-                              </button>
-                            ))
-                          )}
-                        </motion.div>
-                      </>
-                    )}
-                  </div>
+                  ) : (
+                    <div className="flex items-end pb-1 text-gray-400 text-[10px] font-semibold italic">
+                      * El conductor se gestiona desde el panel de asignación.
+                    </div>
+                  )}
                 </div>
-
+ 
                 <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
                   <button 
                     type="button" 
-                    onClick={() => setIsAddModalOpen(false)}
+                    onClick={() => {
+                      setIsAddModalOpen(false);
+                      setEditingVehicleId(null);
+                    }}
                     className="px-4 py-2.5 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl"
                   >
                     Cancelar
@@ -1257,7 +1356,7 @@ export const Vehicles: React.FC<VehiclesProps> = ({
                     className="bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow transition-all flex items-center"
                   >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
-                    Confirmar Registro
+                    {editingVehicleId ? 'Guardar Cambios' : 'Confirmar Registro'}
                   </button>
                 </div>
               </form>

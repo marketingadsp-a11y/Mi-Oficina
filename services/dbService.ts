@@ -26,7 +26,7 @@ import {
   getDownloadURL 
 } from "firebase/storage";
 import { db, storage } from "../firebase";
-import { Employee, Expense, Task, TaskStatus, AppSettings, GeneratedImage, Plaza, Fallo, VacationRequest } from "../types";
+import { Employee, Expense, Task, TaskStatus, AppSettings, GeneratedImage, Plaza, Fallo, VacationRequest, Office } from "../types";
 import { uploadToImgBB } from "./imgbbService";
 
 
@@ -107,7 +107,8 @@ export const subscribeToAppSettings = (callback: (settings: AppSettings) => void
         birthdayPrompt: data.birthdayPrompt || '',
         birthdayVideoPrompt: data.birthdayVideoPrompt || '',
         birthdayWhatsAppTemplate: data.birthdayWhatsAppTemplate || '',
-        imprentaUrl: data.imprentaUrl || ''
+        imprentaUrl: data.imprentaUrl || '',
+        multiOfficeEnabled: data.multiOfficeEnabled ?? false
       });
     }
   }, onError);
@@ -215,6 +216,30 @@ export const verifyAccessCode = async (code: string): Promise<Employee | null> =
     };
   }
   try {
+    // 1. Try checking if this is a registered Office code (for Multi-Office)
+    const officeQuery = query(collection(db, "offices"), where("code", "==", code.toUpperCase().trim()), limit(1));
+    const officeSnapshot = await getDocs(officeQuery);
+    if (!officeSnapshot.empty) {
+      const docSnap = officeSnapshot.docs[0];
+      const data = docSnap.data() as Office;
+      return {
+        id: `office_${docSnap.id}`,
+        firstName: data.name,
+        lastName: 'Sucursal',
+        email: '',
+        position: 'Oficina',
+        plaza: data.name,
+        category: 'Oficina' as any,
+        birthDate: new Date().toISOString(),
+        hireDate: new Date().toISOString(),
+        phone: '',
+        accessCode: data.code,
+        isOfficeUser: true,
+        officeId: docSnap.id
+      } as Employee;
+    }
+
+    // 2. Try checking standard employees
     const q = query(collection(db, "employees"), where("accessCode", "==", code), limit(1));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
@@ -385,7 +410,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         birthdayPrompt: data.birthdayPrompt || '',
         birthdayVideoPrompt: data.birthdayVideoPrompt || '',
         birthdayWhatsAppTemplate: data.birthdayWhatsAppTemplate || '',
-        imprentaUrl: data.imprentaUrl || ''
+        imprentaUrl: data.imprentaUrl || '',
+        multiOfficeEnabled: data.multiOfficeEnabled ?? false
       };
     } else {
       return {
@@ -399,7 +425,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
         birthdayPrompt: '',
         birthdayVideoPrompt: '',
         birthdayWhatsAppTemplate: '',
-        imprentaUrl: ''
+        imprentaUrl: '',
+        multiOfficeEnabled: false
       };
     }
   } catch (error) {
@@ -415,7 +442,8 @@ export const getAppSettings = async (): Promise<AppSettings> => {
       birthdayPrompt: '',
       birthdayVideoPrompt: '',
       birthdayWhatsAppTemplate: '',
-      imprentaUrl: ''
+      imprentaUrl: '',
+      multiOfficeEnabled: false
     };
   }
 };
@@ -722,4 +750,58 @@ export const updateVacationRequest = async (id: string, request: Partial<Vacatio
 export const deleteVacationRequest = async (id: string) => {
   return await deleteDoc(doc(db, "vacation_requests", id));
 };
+
+// --- MULTI-OFFICE METHODS ---
+
+export const subscribeToOffices = (callback: (offices: Office[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "offices"), orderBy("name"));
+  return onSnapshot(q, (snapshot) => {
+    const offices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Office));
+    callback(offices);
+  }, onError);
+};
+
+export const addOffice = async (office: Omit<Office, 'id' | 'createdAt'>) => {
+  return await addDoc(collection(db, "offices"), {
+    ...office,
+    createdAt: new Date().toISOString()
+  });
+};
+
+export const updateOffice = async (id: string, office: Partial<Omit<Office, 'id' | 'createdAt'>>) => {
+  const officeRef = doc(db, "offices", id);
+  return await updateDoc(officeRef, office);
+};
+
+export const deleteOffice = async (id: string) => {
+  return await deleteDoc(doc(db, "offices", id));
+};
+
+// --- CUSTOM EXPENSE CATEGORIES ---
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  createdAt?: string;
+}
+
+export const subscribeToExpenseCategories = (callback: (categories: ExpenseCategory[]) => void, onError: (error: any) => void) => {
+  const q = query(collection(db, "expense_categories"), orderBy("name"));
+  return onSnapshot(q, (snapshot) => {
+    const categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExpenseCategory));
+    callback(categories);
+  }, onError);
+};
+
+export const addExpenseCategory = async (name: string) => {
+  return await addDoc(collection(db, "expense_categories"), {
+    name,
+    createdAt: new Date().toISOString()
+  });
+};
+
+export const deleteExpenseCategory = async (id: string) => {
+  return await deleteDoc(doc(db, "expense_categories", id));
+};
+
 

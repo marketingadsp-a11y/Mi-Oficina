@@ -270,6 +270,12 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
     e.preventDefault();
     setLoading(true);
     try {
+      if (!formData.firstName || !formData.firstName.trim()) {
+          alert("El nombre es obligatorio.");
+          setLoading(false);
+          return;
+      }
+
       if (formData.accessCode && (!/^\d{4}$/.test(formData.accessCode))) {
           alert("El código de acceso debe ser de 4 dígitos numéricos.");
           setLoading(false);
@@ -1253,84 +1259,109 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
 
       {/* EMPLOYEE MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">
-              {editingId ? 'Editar Empleado' : 'Nuevo Empleado'}
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl max-h-[92vh] flex flex-col overflow-hidden border border-gray-100">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-indigo-700 to-indigo-600 px-6 py-4.5 text-white flex items-center justify-between shrink-0 shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <User className="w-5.5 h-5.5 text-indigo-100" />
+                <div>
+                  <h3 className="text-lg font-bold tracking-tight">
+                    {editingId ? 'Editar Colaborador' : 'Registrar Nuevo Colaborador'}
+                  </h3>
+                  <p className="text-xs text-indigo-100/80">Completa la información del personal para el sistema.</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-white/80 hover:text-white bg-white/10 hover:bg-white/25 p-2 rounded-full transition-all text-xs w-8 h-8 flex items-center justify-center font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5 bg-gray-50/50">
               
               {/* Category Selector */}
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1 block">Categoría de Personal</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {CATEGORIES.map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setFormData({...formData, category: cat})}
-                      className={`py-2 px-3 rounded-lg text-sm border-2 transition-all ${
-                        formData.category === cat 
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold' 
-                          : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
+              <div className="bg-white p-4 rounded-xl border border-gray-150 shadow-sm">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2.5 block">Categoría de Personal</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
+                  {CATEGORIES.map(cat => {
+                    const isSelected = formData.category === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setFormData({...formData, category: cat})}
+                        className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                          isSelected 
+                            ? 'bg-white text-indigo-600 shadow-sm border border-indigo-100' 
+                            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100/50 border border-transparent'
+                        }`}
+                      >
+                        {cat === 'Oficina' && <Building className="w-4 h-4" />}
+                        {cat === 'Ejecutivos' && <User className="w-4 h-4" />}
+                        {cat === 'Supervisoras' && <Users className="w-4 h-4" />}
+                        {cat === 'Promotoras' && <Layers className="w-4 h-4" />}
+                        <span>{cat}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* DYNAMIC HIERARCHY FIELDS */}
+              {/* DYNAMIC HIERARCHY FIELDS - NO HEADERS OR COMPLEX BOX LABELS */}
               {formData.category === 'Supervisoras' && (
-                <div className="space-y-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                  <div>
-                    <label className="text-xs font-bold text-blue-700 mb-1 block flex items-center">
-                      <LinkIcon className="w-3 h-3 mr-1" /> Ejecutivo Vinculado
-                    </label>
-                    <select 
-                      className="w-full border border-blue-200 p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                      value={formData.linkedExecutiveId || ''}
-                      onChange={e => {
-                        const execId = e.target.value;
-                        const executive = availableExecutives.find(ex => ex.id === execId);
-                        setFormData({
-                          ...formData, 
-                          linkedExecutiveId: execId,
-                          plaza: executive?.plaza || formData.plaza // Auto-set plaza
-                        });
-                      }}
-                    >
-                      <option value="">-- Seleccionar Ejecutivo --</option>
-                      {availableExecutives.map(ex => (
-                        <option key={ex.id} value={ex.id}>{ex.firstName} {ex.lastName}</option>
-                      ))}
-                    </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white p-4 rounded-xl border border-gray-150 shadow-sm">
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Ejecutivo Vinculado</label>
+                    <div className="relative">
+                      <LinkIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500" />
+                      <select 
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
+                        value={formData.linkedExecutiveId || ''}
+                        onChange={e => {
+                          const execId = e.target.value;
+                          const executive = availableExecutives.find(ex => ex.id === execId);
+                          setFormData({
+                            ...formData, 
+                            linkedExecutiveId: execId,
+                            plaza: executive?.plaza || formData.plaza
+                          });
+                        }}
+                      >
+                        <option value="">-- Seleccionar Ejecutivo --</option>
+                        {availableExecutives.map(ex => (
+                          <option key={ex.id} value={ex.id}>{ex.firstName} {ex.lastName}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-bold text-blue-700 mb-1 block flex items-center">
-                      <Users className="w-3 h-3 mr-1" /> Nombre Supervisión
-                    </label>
-                    <input 
-                      type="text"
-                      placeholder="Ej. Supervisión Norte"
-                      className="w-full border border-blue-200 p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                      value={formData.supervisionName || ''}
-                      onChange={e => setFormData({...formData, supervisionName: e.target.value})}
-                    />
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Nombre de Supervisión</label>
+                    <div className="relative">
+                      <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500" />
+                      <input 
+                        type="text"
+                        placeholder="Ej. Supervisión Norte"
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm placeholder-gray-400"
+                        value={formData.supervisionName || ''}
+                        onChange={e => setFormData({...formData, supervisionName: e.target.value})}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
 
               {formData.category === 'Promotoras' && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 bg-amber-50 p-3 rounded-lg border border-amber-100">
-                    <div>
-                      <label className="text-xs font-bold text-amber-700 mb-1 block flex items-center">
-                        <LinkIcon className="w-3 h-3 mr-1" /> Supervisora
-                      </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white p-4 rounded-xl border border-gray-150 shadow-sm">
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Supervisora</label>
+                    <div className="relative">
+                      <LinkIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500" />
                       <select 
-                        className="w-full border border-amber-200 p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none text-sm"
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
                         value={formData.linkedSupervisorId || ''}
                         onChange={e => handleSupervisorChange(e.target.value)}
                       >
@@ -1340,13 +1371,15 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <label className="text-xs font-bold text-gray-500 mb-1 block flex items-center">
-                        <Lock className="w-3 h-3 mr-1" /> Ejecutivo (Auto)
-                      </label>
+                  </div>
+
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-400 mb-1 block">Ejecutivo (Auto)</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <select 
                         disabled
-                        className="w-full border border-gray-200 p-2 rounded bg-gray-100 text-gray-500 outline-none text-sm cursor-not-allowed"
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-150 rounded-xl bg-gray-50 text-gray-400 text-sm outline-none cursor-not-allowed"
                         value={formData.linkedExecutiveId || ''}
                       >
                         <option value="">-- Automático --</option>
@@ -1357,130 +1390,214 @@ export const Personnel: React.FC<PersonnelProps> = ({ employees, plazas, isLoadi
                     </div>
                   </div>
 
-                  <div className="bg-cyan-50 p-3 rounded-lg border border-cyan-100">
-                    <label className="text-xs font-bold text-cyan-700 mb-1 block flex items-center">
-                      <Users className="w-3 h-3 mr-1" /> Nombre del Grupo
-                    </label>
-                    <input 
-                      type="text"
-                      placeholder="Ej. Rosy Colima"
-                      className="w-full border border-cyan-200 p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 outline-none text-sm"
-                      value={formData.groupName || ''}
-                      onChange={e => setFormData({...formData, groupName: e.target.value})}
-                    />
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Nombre del Grupo</label>
+                    <div className="relative">
+                      <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500" />
+                      <input 
+                        type="text"
+                        placeholder="Ej. Rosy Colima"
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm placeholder-gray-400"
+                        value={formData.groupName || ''}
+                        onChange={e => setFormData({...formData, groupName: e.target.value})}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <label className="text-xs text-gray-500 mb-1 block">Nombre</label>
-                   <input 
-                     placeholder="Nombre" 
-                     className="w-full border p-2 rounded bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" 
-                     value={formData.firstName} 
-                     onChange={e => {
-                       const val = e.target.value;
-                       setFormData(prev => ({...prev, firstName: val}));
-                     }} 
-                   />
+              {/* HIGHLY PROFESSIONAL COMPACT FORM GRID */}
+              <div className="bg-white p-5 rounded-xl border border-gray-150 shadow-sm space-y-4">
+                <div className="text-xs font-bold text-gray-700 uppercase tracking-wider border-b pb-2 flex items-center gap-2">
+                  <Clipboard className="w-4 h-4 text-indigo-600" /> Datos Generales y de Acceso
                 </div>
-                <div>
-                   <label className="text-xs text-gray-500 mb-1 block">Apellido</label>
-                   <input 
-                     placeholder="Apellido" 
-                     className="w-full border p-2 rounded bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" 
-                     value={formData.lastName} 
-                     onChange={e => {
-                       const val = e.target.value;
-                       setFormData(prev => ({...prev, lastName: val}));
-                     }} 
-                   />
-                </div>
-              </div>
-              
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block font-bold">Celular / WhatsApp</label>
-                <input 
-                  type="text" 
-                  maxLength={10}
-                  placeholder="10 dígitos numéricos (Ej: 5551234567)" 
-                  className="w-full border p-2 rounded bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" 
-                  value={formData.email} 
-                  onChange={e => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                    setFormData(prev => ({...prev, email: val}));
-                  }} 
-                />
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                {!['Supervisoras', 'Promotoras'].includes(formData.category || '') && (
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Puesto / Cargo</label>
-                    <input placeholder="Ej. Gerente de Ventas" className="w-full border p-2 rounded bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} />
-                  </div>
-                )}
-                <div className={['Supervisoras', 'Promotoras'].includes(formData.category || '') ? "col-span-2" : ""}>
-                  <label className="text-xs text-gray-500 mb-1 block">Plaza</label>
-                  {plazas.length > 0 ? (
-                    <select 
-                      className="w-full border p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
-                      value={formData.plaza} 
-                      onChange={e => setFormData({...formData, plaza: e.target.value})}
-                    >
-                      <option value="">-- Seleccionar Plaza --</option>
-                      {plazas.map(p => (
-                        <option key={p.id} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="text-sm text-red-500 border border-red-200 bg-red-50 p-2 rounded">
-                      ¡Primero registra Plazas en el botón "Gestionar Plazas"!
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4.5">
+                  {/* Nombre - ONLY REQUIRED FIELD */}
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">
+                      Nombre(s) <span className="text-red-500 font-extrabold ml-0.5">*</span>
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="text"
+                        placeholder="Escribe el nombre completo" 
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm font-semibold" 
+                        value={formData.firstName} 
+                        onChange={e => setFormData(prev => ({...prev, firstName: e.target.value}))} 
+                        required
+                      />
                     </div>
-                  )}
+                  </div>
+
+                  {/* Apellidos */}
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Apellido(s)</label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="text"
+                        placeholder="Escribe los apellidos completos" 
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm font-semibold" 
+                        value={formData.lastName} 
+                        onChange={e => setFormData(prev => ({...prev, lastName: e.target.value}))} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Celular / WhatsApp */}
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Celular / WhatsApp (Usuario)</label>
+                    <div className="relative">
+                      <MessageSquare className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+                      <input 
+                        type="text" 
+                        maxLength={10}
+                        placeholder="10 dígitos (Ej: 5551234567)" 
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm font-mono" 
+                        value={formData.email} 
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setFormData(prev => ({...prev, email: val}));
+                        }} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Fecha Nacimiento */}
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Fecha de Nacimiento</label>
+                    <div className="relative">
+                      <Cake className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="date" 
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm" 
+                        value={formData.birthDate} 
+                        onChange={e => setFormData(prev => ({...prev, birthDate: e.target.value}))} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Puesto / Cargo (only for Office/Execs) */}
+                  {!['Supervisoras', 'Promotoras'].includes(formData.category || '') ? (
+                    <div className="relative">
+                      <label className="text-xs font-bold text-gray-600 mb-1 block">Puesto / Cargo</label>
+                      <div className="relative">
+                        <Clipboard className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input 
+                          type="text"
+                          placeholder="Ej. Coordinador General" 
+                          className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm" 
+                          value={formData.position} 
+                          onChange={e => setFormData(prev => ({...prev, position: e.target.value}))} 
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Plaza */}
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Plaza</label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      {plazas.length > 0 ? (
+                        <select 
+                          className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm font-semibold"
+                          value={formData.plaza} 
+                          onChange={e => setFormData(prev => ({...prev, plaza: e.target.value}))}
+                        >
+                          <option value="">-- Seleccionar Plaza --</option>
+                          {plazas.map(p => (
+                            <option key={p.id} value={p.name}>{p.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="text-xs text-red-500 border border-red-200 bg-red-50 p-2.5 rounded-xl">
+                          No hay plazas. Créalas en "Gestionar Plazas".
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Fecha Contratación */}
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Fecha Contratación</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="date" 
+                        className="pl-10 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm" 
+                        value={formData.hireDate} 
+                        onChange={e => setFormData(prev => ({...prev, hireDate: e.target.value}))} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* PIN de Acceso */}
+                  <div className="relative">
+                    <label className="text-xs font-bold text-indigo-600 mb-1 block flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5 text-indigo-500" /> PIN de Acceso (4 d)
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500" />
+                      <input 
+                        type="text"
+                        maxLength={4} 
+                        placeholder="Ej. 1234" 
+                        className="pl-10 pr-3 py-2.5 w-full border border-indigo-100 rounded-xl bg-white text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm font-mono text-center font-bold text-indigo-700" 
+                        value={formData.accessCode || ''} 
+                        onChange={e => setFormData(prev => ({...prev, accessCode: e.target.value.replace(/\D/g,'')}))} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Estado */}
+                  <div className="relative">
+                    <label className="text-xs font-bold text-gray-600 mb-1 block">Estado del Colaborador</label>
+                    <div className="relative">
+                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                        {formData.status === 'ACTIVO' && <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>}
+                        {formData.status === 'INACTIVO' && <span className="w-2.5 h-2.5 bg-amber-500 rounded-full"></span>}
+                        {formData.status === 'BAJA' && <span className="w-2.5 h-2.5 bg-rose-500 rounded-full"></span>}
+                      </div>
+                      <select 
+                        className="pl-8 pr-3 py-2.5 w-full border border-gray-200 rounded-xl bg-white text-gray-900 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
+                        value={formData.status || 'ACTIVO'}
+                        onChange={e => setFormData(prev => ({...prev, status: e.target.value as any}))}
+                      >
+                        <option value="ACTIVO">🟢 ACTIVO</option>
+                        <option value="INACTIVO">🟡 INACTIVO</option>
+                        <option value="BAJA">🔴 BAJA</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Teléfono</label>
-                  <input placeholder="+52 555 555 5555" className="w-full border p-2 rounded bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block font-bold text-indigo-600 flex items-center"><Lock className="w-3 h-3 mr-1" /> Código Acceso</label>
-                  <input maxLength={4} placeholder="4 dígitos (Ej: 1234)" className="w-full border-2 border-indigo-100 p-2 rounded bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.accessCode || ''} onChange={e => setFormData({...formData, accessCode: e.target.value.replace(/\D/g,'')})} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Fecha Nacimiento</label>
-                  <input type="date" className="w-full border p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.birthDate} onChange={e => setFormData({...formData, birthDate: e.target.value})} />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Fecha Contratación</label>
-                  <input type="date" className="w-full border p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none" value={formData.hireDate} onChange={e => setFormData({...formData, hireDate: e.target.value})} />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block font-bold text-gray-700">Estado del Empleado</label>
-                <select 
-                  className="w-full border p-2 rounded bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none text-sm font-semibold"
-                  value={formData.status || 'ACTIVO'}
-                  onChange={e => setFormData({...formData, status: e.target.value as any})}
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 shrink-0">
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)} 
+                  className="px-5 py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 hover:text-gray-900 transition-all shadow-sm"
                 >
-                  <option value="ACTIVO">🟢 ACTIVO</option>
-                  <option value="INACTIVO">🟡 INACTIVO</option>
-                  <option value="BAJA">🔴 BAJA</option>
-                </select>
-              </div>
-              
-              <div className="flex justify-end gap-3 pt-6 border-t mt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
-                <button type="submit" disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 shadow-md transition-colors font-medium">
-                  {loading ? 'Guardando...' : (editingId ? 'Actualizar' : 'Guardar Empleado')}
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={loading} 
+                  className="px-6 py-2.5 bg-gradient-to-r from-indigo-700 to-indigo-600 text-white rounded-xl text-xs font-bold hover:shadow-md active:scale-95 disabled:opacity-50 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" /> {editingId ? 'Guardar Cambios' : 'Registrar Colaborador'}
+                    </>
+                  )}
                 </button>
               </div>
             </form>
